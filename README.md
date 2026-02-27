@@ -6,7 +6,7 @@
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/ca285706-b27e-435b-8bbd-2be18781b966
+View your Idle Alien Game in AI Studio: https://ai.studio/apps/ca285706-b27e-435b-8bbd-2be18781b966
 
 ## Run Locally
 
