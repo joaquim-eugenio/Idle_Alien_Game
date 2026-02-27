@@ -1,22 +1,22 @@
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
 import { PERSISTENCE } from '../../lib/constants';
+import { disableSaving } from '../../hooks/useAutoSave';
 
 interface SettingsModalProps {
   onClose: () => void;
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const reset = useGameStore((s) => s.reset);
   const totalEnergyEarned = useGameStore((s) => s.totalEnergyEarned);
   const totalBugsEaten = useGameStore((s) => s.totalBugsEaten);
   const totalReproductions = useGameStore((s) => s.totalReproductions);
 
   const handleReset = () => {
     if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
+      disableSaving();
       localStorage.removeItem(PERSISTENCE.SAVE_KEY);
-      reset();
-      onClose();
+      window.location.reload();
     }
   };
 
