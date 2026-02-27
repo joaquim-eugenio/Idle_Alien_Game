@@ -24,11 +24,13 @@ function UpgradeButton({ label, icon, cost, level, energy, disabled, maxLabel, s
 
   return (
     <motion.button
-      className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 min-w-[72px] active:scale-95 transition-transform"
+      className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 min-w-[68px] active:scale-95 transition-transform"
       style={{
         background: canAfford ? 'var(--color-ui-surface)' : 'rgba(30,30,63,0.5)',
         border: `1px solid ${canAfford ? 'var(--color-ui-border)' : 'rgba(58,58,110,0.3)'}`,
         opacity: canAfford ? 1 : 0.5,
+        flexShrink: 0,
+        scrollSnapAlign: 'center',
       }}
       whileTap={{ scale: 0.92 }}
       onClick={onClick}
@@ -134,8 +136,19 @@ export function UpgradePanel() {
               }}
             >
               <div className="p-3 flex flex-col gap-3">
-                {/* Main upgrades row */}
-                <div className="flex justify-center gap-2 overflow-x-auto">
+                {/* Main upgrades row - horizontally scrollable on mobile */}
+                <div
+                  className="flex gap-2 overflow-x-auto pb-1"
+                  style={{
+                    WebkitOverflowScrolling: 'touch',
+                    touchAction: 'pan-x',
+                    scrollbarWidth: 'none',
+                    overscrollBehaviorX: 'contain',
+                    scrollSnapType: 'x proximity',
+                    paddingLeft: 4,
+                    paddingRight: 4,
+                  }}
+                >
                   <UpgradeButton
                     label="Reproduce"
                     icon="🥚"

@@ -165,7 +165,7 @@ export function AlienStatusPanel({ onClose }: AlienStatusPanelProps) {
         style={{
           background: 'var(--color-ui-surface)',
           border: '1px solid var(--color-ui-border)',
-          maxHeight: '80vh',
+          maxHeight: '75dvh',
         }}
         initial={{ scale: 0.85, y: 30 }}
         animate={{ scale: 1, y: 0 }}
@@ -173,7 +173,7 @@ export function AlienStatusPanel({ onClose }: AlienStatusPanelProps) {
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 pb-2">
+        <div className="flex items-center justify-between p-4 pb-2" style={{ flexShrink: 0 }}>
           <div>
             <h2 className="text-lg font-bold" style={{ color: 'var(--color-ui-text)' }}>
               Alien Status
@@ -197,6 +197,10 @@ export function AlienStatusPanel({ onClose }: AlienStatusPanelProps) {
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'var(--color-ui-border) transparent',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+            overscrollBehavior: 'contain',
+            minHeight: 0,
           }}
         >
           <div className="flex flex-col gap-2">
