@@ -9,6 +9,7 @@ import { MitosisEffect } from './MitosisEffect';
 import { CollisionEffect } from './CollisionEffect';
 import { FartEffect } from './FartEffect';
 import { PooCanvas } from './PooCanvas';
+import { PredatorCanvas } from './PredatorCanvas';
 import { PooCleanEffect } from './PooCleanEffect';
 import { BackgroundPlanets } from './BackgroundPlanets';
 import { StarTravelEffect } from './StarTravelEffect';
@@ -267,6 +268,9 @@ export function GameCanvas() {
 
         {/* Bugs - rendered on a single canvas (flyweight pattern, culled internally) */}
         <BugCanvas width={worldSize.width} height={worldSize.height} visBounds={visBounds} />
+
+        {/* Predator bugs - rendered on a single canvas (flyweight pattern, culled internally) */}
+        <PredatorCanvas width={worldSize.width} height={worldSize.height} visBounds={visBounds} />
 
         {/* Poos - rendered on a single canvas (flyweight pattern, culled internally) */}
         <PooCanvas width={worldSize.width} height={worldSize.height} visBounds={visBounds} />

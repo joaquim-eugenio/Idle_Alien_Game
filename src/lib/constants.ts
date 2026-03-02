@@ -76,6 +76,20 @@ export const COLORS = {
   VIVID_HUES: [0, 30, 60, 120, 180, 210, 270, 300, 330],
 } as const;
 
+export const PREDATOR = {
+  SPAWN_INTERVAL: 15,
+  MAX_PREDATORS: 8,
+  SPEED: 25,
+  SIZE: 30,
+  EATING_RANGE: 18,
+  EATING_DURATION: 0.8,
+  DAMAGE_PER_HIT: 1,
+  HUNT_RANGE: 120,
+  MIN_SPAWN_ALIENS: 3,
+  DAMAGE_FLASH_MS: 200,
+  DEATH_ANIM_MS: 400,
+} as const;
+
 export const GALAXY = {
   BASE_TRAVEL_COST: 500,
   COST_SCALE: 1.5,
