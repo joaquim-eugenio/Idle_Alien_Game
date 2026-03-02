@@ -32,6 +32,7 @@ function createInitialState(): GameState {
     poos: [],
     currentGalaxyId: 0,
     isTraveling: false,
+    defeatedAlien: null,
   };
 }
 
@@ -430,13 +431,20 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       }
 
       // --- Sickness derivation and death ---
+      let aliveCount = next.aliens.filter(a => !a.isDying).length;
       for (const a of next.aliens) {
         if (a.isDying) continue;
         const count = a.uncleanedPooCount;
         if (count >= SICKNESS.DEATH_THRESHOLD) {
+          if (aliveCount <= 1) {
+            a.sicknessLevel = 'heavy';
+            continue;
+          }
           a.isDying = true;
           a.deathTime = now;
           a.sicknessLevel = 'heavy';
+          next.defeatedAlien = { ...a };
+          aliveCount--;
         } else if (count >= SICKNESS.HEAVY_THRESHOLD) {
           a.sicknessLevel = 'heavy';
         } else if (count >= SICKNESS.MID_THRESHOLD) {
@@ -580,6 +588,23 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     });
   },
 
+  clearAllPoos: () => {
+    set((state) => ({
+      poos: [],
+      aliens: state.aliens.map((a) => ({
+        ...a,
+        uncleanedPooCount: 0,
+        sicknessLevel: 'none' as const,
+        isDying: false,
+        deathTime: undefined,
+      })),
+    }));
+  },
+
+  clearDefeatedAlien: () => {
+    set({ defeatedAlien: null });
+  },
+
   removeAlien: (id: string) => {
     set((state) => ({
       aliens: state.aliens.filter((a) => a.id !== id),
@@ -644,6 +669,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       })),
       currentGalaxyId: saved.currentGalaxyId ?? current.currentGalaxyId ?? 0,
       isTraveling: false,
+      defeatedAlien: null,
       bugSpawnTimer: 0,
       plantSpawnTimer: 0,
     }));

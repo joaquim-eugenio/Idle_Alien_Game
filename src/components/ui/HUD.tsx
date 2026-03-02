@@ -4,14 +4,26 @@ import { useGameStore } from '../../store/gameStore';
 import { formatEnergy } from '../../lib/utils';
 import { SettingsModal } from './SettingsModal';
 import { AlienStatusPanel } from './AlienStatusPanel';
+import { DefeatedPopup } from './DefeatedPopup';
+import { useAdManager } from '../../hooks/useAdManager';
 
 export function HUD() {
   const energy = useGameStore((s) => s.energy);
   const alienCount = useGameStore((s) => s.aliens.length);
   const totalBugsEaten = useGameStore((s) => s.totalBugsEaten);
   const sickCount = useGameStore((s) => s.aliens.filter((a) => a.sicknessLevel !== 'none' && !a.isDying).length);
+  const pooCount = useGameStore((s) => s.poos.length);
+  const clearAllPoos = useGameStore((s) => s.clearAllPoos);
+  const { watchRewardedAd } = useAdManager();
   const [showSettings, setShowSettings] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
+
+  const handleCleanAll = () => {
+    const adWatched = watchRewardedAd();
+    if (adWatched) {
+      clearAllPoos();
+    }
+  };
 
   return (
     <>
@@ -58,6 +70,23 @@ export function HUD() {
             <span className="text-base">🐛</span>
             <span className="tabular-nums font-medium">{totalBugsEaten}</span>
           </div>
+          {pooCount > 0 && (
+            <motion.button
+              className="h-8 rounded-full flex items-center gap-1 px-2.5 text-[11px] font-semibold active:scale-90 transition-transform"
+              style={{
+                background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.15)',
+                boxShadow: '0 2px 8px rgba(139,92,246,0.35)',
+              }}
+              whileTap={{ scale: 0.92 }}
+              onClick={handleCleanAll}
+            >
+              <span>✨</span>
+              <span>Clean</span>
+              <span className="text-[9px] opacity-60">🎬</span>
+            </motion.button>
+          )}
           <button
             onClick={() => setShowStatus(true)}
             className="relative w-8 h-8 rounded-full flex items-center justify-center text-lg active:scale-90 transition-transform"
@@ -86,6 +115,8 @@ export function HUD() {
           </button>
         </div>
       </div>
+
+      <DefeatedPopup />
 
       <AnimatePresence>
         {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}

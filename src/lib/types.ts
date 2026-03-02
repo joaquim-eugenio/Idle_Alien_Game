@@ -165,6 +165,7 @@ export interface GameState {
   poos: Poo[];
   currentGalaxyId: number;
   isTraveling: boolean;
+  defeatedAlien: Alien | null;
 }
 
 export interface GameActions {
@@ -174,6 +175,8 @@ export interface GameActions {
   upgradeSpeed: () => boolean;
   upgradeBugRate: () => boolean;
   removePoo: (id: string) => void;
+  clearAllPoos: () => void;
+  clearDefeatedAlien: () => void;
   removeAlien: (id: string) => void;
   healAlien: (id: string) => void;
   addEnergy: (amount: number) => void;
@@ -185,7 +188,7 @@ export interface GameActions {
   setTraveling: (v: boolean) => void;
 }
 
-export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'collisionEvents'> & { collisionEvents: CollisionEvent[]; poos: Poo[] };
+export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'collisionEvents' | 'defeatedAlien'> & { collisionEvents: CollisionEvent[]; poos: Poo[] };
 
 export interface ShopProduct {
   id: string;
