@@ -1,7 +1,7 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
 import { PERSISTENCE } from '../../lib/constants';
-import { disableSaving } from '../../hooks/useAutoSave';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -11,13 +11,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const totalEnergyEarned = useGameStore((s) => s.totalEnergyEarned);
   const totalBugsEaten = useGameStore((s) => s.totalBugsEaten);
   const totalReproductions = useGameStore((s) => s.totalReproductions);
+  const [isConfirmingReset, setIsConfirmingReset] = useState(false);
 
   const handleReset = () => {
-    if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
-      disableSaving();
-      localStorage.removeItem(PERSISTENCE.SAVE_KEY);
-      window.location.reload();
+    if (!isConfirmingReset) {
+      setIsConfirmingReset(true);
+      return;
     }
+    useGameStore.getState().reset();
+    localStorage.removeItem(PERSISTENCE.SAVE_KEY);
+    onClose();
   };
 
   return (
@@ -71,12 +74,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             onClick={handleReset}
             className="w-full py-2 px-4 rounded-xl text-sm font-medium active:scale-95 transition-transform"
             style={{
-              background: 'rgba(239, 68, 68, 0.15)',
+              background: isConfirmingReset ? '#ef4444' : 'rgba(239, 68, 68, 0.15)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#ef4444',
+              color: isConfirmingReset ? '#fff' : '#ef4444',
             }}
           >
-            Reset Progress
+            {isConfirmingReset ? 'Are you sure? (Click again)' : 'Reset Progress'}
           </button>
         </div>
 

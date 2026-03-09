@@ -5,7 +5,6 @@ import { SplashScreen } from './components/layout/SplashScreen';
 import { GameCanvas } from './components/game/GameCanvas';
 import { HUD } from './components/ui/HUD';
 import { UpgradePanel } from './components/ui/UpgradePanel';
-import { AdBanner } from './components/ui/AdBanner';
 import { useGameLoop } from './hooks/useGameLoop';
 import { useAutoSave } from './hooks/useAutoSave';
 
@@ -18,7 +17,6 @@ function GameScreen() {
       <GameCanvas />
       <HUD />
       <UpgradePanel />
-      <AdBanner />
     </>
   );
 }

@@ -7,7 +7,6 @@ export type HornType = 'none' | 'single' | 'double' | 'antlers' | 'spikes';
 export type EyePlacement = 'face' | 'stalks' | 'top';
 export type MouthStyle = 'dot' | 'smile' | 'open' | 'teeth' | 'fangs';
 export type BugSpecies = 'ant' | 'beetle' | 'cricket' | 'centipede' | 'ladybug';
-export type PredatorSpecies = 'stalker' | 'ravager' | 'lurker' | 'slasher' | 'devourer' | 'hunter';
 export type SicknessLevel = 'none' | 'light' | 'mid' | 'heavy';
 
 export type PlanetMaterial = 'rock' | 'ice' | 'fire';
@@ -96,6 +95,10 @@ export interface Alien {
   sicknessLevel: SicknessLevel;
   isDying: boolean;
   deathTime?: number;
+  level: number;
+  hp: number;
+  maxHp: number;
+  lastDamageTime?: number;
 }
 
 export interface Bug {
@@ -119,7 +122,7 @@ export interface PredatorBug {
   hp: number;
   maxHp: number;
   energyValue: number;
-  species: PredatorSpecies;
+  archetypeId: string;
   hueShift: number;
   sizeScale: number;
   spawnedAt: number;
@@ -200,6 +203,7 @@ export interface GameActions {
   clearDefeatedAlien: () => void;
   removeAlien: (id: string) => void;
   healAlien: (id: string) => void;
+  upgradeAlienLevel: (id: string) => boolean;
   addEnergy: (amount: number) => void;
   reset: () => void;
   loadState: (saved: Partial<SerializableGameState>) => void;
@@ -209,7 +213,7 @@ export interface GameActions {
   setTraveling: (v: boolean) => void;
 }
 
-export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'predatorSpawnTimer' | 'collisionEvents' | 'defeatedAlien'> & { collisionEvents: CollisionEvent[]; poos: Poo[] };
+export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'predatorSpawnTimer' | 'collisionEvents' | 'defeatedAlien'> & { collisionEvents: CollisionEvent[]; poos: Poo[]; lastSaveTime?: number };
 
 export interface ShopProduct {
   id: string;

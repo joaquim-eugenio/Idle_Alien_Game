@@ -22,10 +22,13 @@ export function ShopModal({ onClose }: ShopModalProps) {
 
       {/* Modal */}
       <motion.div
-        className="relative w-[90%] max-w-sm rounded-2xl p-5 max-h-[80vh] overflow-y-auto"
+        className="relative w-[90%] max-w-sm rounded-2xl p-5 max-h-[75dvh] overflow-y-auto"
         style={{
           background: 'var(--color-ui-surface)',
           border: '1px solid var(--color-ui-border)',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          overscrollBehavior: 'contain',
         }}
         initial={{ scale: 0.85, y: 30 }}
         animate={{ scale: 1, y: 0 }}

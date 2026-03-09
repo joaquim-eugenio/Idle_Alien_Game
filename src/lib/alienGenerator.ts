@@ -98,5 +98,8 @@ export function createAlien(
     uncleanedPooCount: 0,
     sicknessLevel: 'none',
     isDying: false,
+    level: 1,
+    hp: 100,
+    maxHp: 100,
   };
 }

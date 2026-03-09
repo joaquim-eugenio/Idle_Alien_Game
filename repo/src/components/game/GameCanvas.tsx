@@ -8,7 +8,8 @@ import { EatingEffect } from './EatingEffect';
 import { MitosisEffect } from './MitosisEffect';
 import { CollisionEffect } from './CollisionEffect';
 import { FartEffect } from './FartEffect';
-import { PooEntity } from './PooEntity';
+import { PooCanvas } from './PooCanvas';
+import { PredatorCanvas } from './PredatorCanvas';
 import { PooCleanEffect } from './PooCleanEffect';
 import { BackgroundPlanets } from './BackgroundPlanets';
 import { StarTravelEffect } from './StarTravelEffect';
@@ -96,7 +97,6 @@ export function GameCanvas() {
   const plants = useGameStore((s) => s.plants);
   const worldSize = useGameStore((s) => s.worldSize);
   const collisionEvents = useGameStore((s) => s.collisionEvents);
-  const poos = useGameStore((s) => s.poos);
   const removePoo = useGameStore((s) => s.removePoo);
   const initializeWorldSize = useGameStore((s) => s.initializeWorldSize);
   const currentGalaxyId = useGameStore((s) => s.currentGalaxyId);
@@ -131,11 +131,6 @@ export function GameCanvas() {
   const visibleAliens = useMemo(() =>
     aliens.filter(a => a.x >= visBounds.left && a.x <= visBounds.right && a.y >= visBounds.top && a.y <= visBounds.bottom),
     [aliens, visBounds],
-  );
-
-  const visiblePoos = useMemo(() =>
-    poos.filter(p => p.x >= visBounds.left && p.x <= visBounds.right && p.y >= visBounds.top && p.y <= visBounds.bottom),
-    [poos, visBounds],
   );
 
   const birthingParentIds = useMemo(() => {
@@ -274,10 +269,11 @@ export function GameCanvas() {
         {/* Bugs - rendered on a single canvas (flyweight pattern, culled internally) */}
         <BugCanvas width={worldSize.width} height={worldSize.height} visBounds={visBounds} />
 
-        {/* Poos (viewport-culled) */}
-        {visiblePoos.map((poo) => (
-          <PooEntity key={poo.id} poo={poo} />
-        ))}
+        {/* Predator bugs - rendered on a single canvas (flyweight pattern, culled internally) */}
+        <PredatorCanvas width={worldSize.width} height={worldSize.height} visBounds={visBounds} />
+
+        {/* Poos - rendered on a single canvas (flyweight pattern, culled internally) */}
+        <PooCanvas width={worldSize.width} height={worldSize.height} visBounds={visBounds} />
 
         {/* Mitosis effects for reproducing parents */}
         {visibleAliens

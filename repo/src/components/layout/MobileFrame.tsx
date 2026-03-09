@@ -4,12 +4,27 @@ interface MobileFrameProps {
   children: ReactNode;
 }
 
+function isInsideScrollable(target: HTMLElement | null): boolean {
+  let el = target;
+  while (el && el !== document.body) {
+    const style = window.getComputedStyle(el);
+    const overflowY = style.overflowY;
+    const overflowX = style.overflowX;
+    const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+    const isScrollableX = (overflowX === 'auto' || overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+    if (isScrollableY || isScrollableX) return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
 export function MobileFrame({ children }: MobileFrameProps) {
   useEffect(() => {
     const preventDefaults = (e: TouchEvent) => {
-      if ((e.target as HTMLElement)?.tagName !== 'BUTTON') {
-        e.preventDefault();
-      }
+      const target = e.target as HTMLElement;
+      if (target?.tagName === 'BUTTON') return;
+      if (isInsideScrollable(target)) return;
+      e.preventDefault();
     };
 
     const preventContextMenu = (e: Event) => e.preventDefault();

@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@theme {
+  --color-space-dark: #0a0a1a;
+  --color-space-mid: #1a1a3e;
+  --color-space-light: #2a2a5e;
+  --color-energy-green: #39ff14;
+  --color-energy-glow: #39ff1466;
+  --color-bug-common: #7fff00;
+  --color-bug-rare: #00bfff;
+  --color-bug-golden: #ffd700;
+  --color-plant-alien: #9b59b6;
+  --color-ui-surface: #1e1e3f;
+  --color-ui-border: #3a3a6e;
+  --color-ui-text: #e0e0ff;
+  --color-ui-muted: #8888bb;
+}
+
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--color-energy-glow)); }
+  50% { filter: drop-shadow(0 0 12px var(--color-energy-glow)); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+
+@keyframes biolum-pulse {
+  0%, 100% { opacity: 0.8; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.4); }
+}
+
+@keyframes spore-float {
+  0% { transform: translateY(0) translateX(0); opacity: 0.7; }
+  50% { transform: translateY(-8px) translateX(3px); opacity: 0.3; }
+  100% { transform: translateY(0) translateX(0); opacity: 0.7; }
+}
+
+@keyframes spore-fall {
+  0% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(6px) translateX(-2px); opacity: 0.2; }
+  100% { transform: translateY(0); opacity: 0.6; }
+}
+
+@keyframes tendril-sway {
+  0%, 100% { transform: translateX(-50%) rotate(var(--base-rot, 0deg)); }
+  33% { transform: translateX(-50%) rotate(calc(var(--base-rot, 0deg) + 4deg)); }
+  66% { transform: translateX(-50%) rotate(calc(var(--base-rot, 0deg) - 3deg)); }
+}
+
+@keyframes lantern-swing {
+  0%, 100% { transform: translateX(-50%) rotate(-3deg); }
+  50% { transform: translateX(-50%) rotate(3deg); }
+}
+
+@keyframes angry-shake {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  20% { transform: translateX(-50%) rotate(-3deg) translateY(-0.5px); }
+  40% { transform: translateX(-50%) rotate(2deg) translateY(0.5px); }
+  60% { transform: translateX(-50%) rotate(-2deg) translateY(-0.3px); }
+  80% { transform: translateX(-50%) rotate(3deg) translateY(0.3px); }
+}
+
+@keyframes plant-appear {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: var(--star-lo, 0.1); }
+  50% { opacity: var(--star-hi, 0.8); }
+}
+
+@keyframes star-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
+@keyframes satellite-move {
+  from { left: -2%; }
+  to { left: 102%; }
+}
+
+@keyframes fart-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes fart-puff {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0.85; }
+  100% { transform: translate(var(--fart-tx), var(--fart-ty)) scale(2.5); opacity: 0; }
+}
+
+@keyframes eat-particle {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--eat-tx), var(--eat-ty)) scale(0); opacity: 0; }
+}
+
+@keyframes eat-text {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-20px); opacity: 0; }
+}
+
+@keyframes collision-flash {
+  0% { transform: scale(0.3); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes collision-particle {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--col-tx), var(--col-ty)) scale(0.2) rotate(var(--col-rot)); opacity: 0; }
+}
+
+@keyframes mitosis-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes mitosis-bridge {
+  0% { width: 0; opacity: 0.8; }
+  30% { width: var(--bridge-w); opacity: 0.6; }
+  60% { width: var(--bridge-w); opacity: 0.4; }
+  100% { width: 0; opacity: 0; }
+}
+
+@keyframes mitosis-glow {
+  0% { width: 10px; height: 10px; opacity: 0.9; }
+  100% { width: 35px; height: 35px; opacity: 0; }
+}
+
+@keyframes mitosis-ring {
+  0% { width: 6px; height: 6px; opacity: 0.7; border-radius: 40% 60% 55% 45% / 55% 40% 60% 45%; }
+  50% { border-radius: 55% 45% 40% 60% / 45% 55% 45% 55%; }
+  100% { width: 45px; height: 45px; opacity: 0; border-radius: 50%; }
+}
+
+@keyframes mitosis-blob {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.8; border-radius: 40% 60% 50% 50%; }
+  100% { transform: translate(var(--blob-tx), var(--blob-ty)) scale(0.3); opacity: 0; border-radius: 50%; }
+}
+
+@keyframes poo-appear {
+  from { transform: translate3d(-50%, -50%, 0) scale(0); }
+  to { transform: translate3d(-50%, -50%, 0) scale(1); }
+}
+
+@keyframes poo-stink {
+  0% { transform: translateY(0) scaleX(1); opacity: 0; }
+  20% { opacity: 0.6; }
+  50% { transform: translateY(-8px) scaleX(0.7); opacity: 0.4; }
+  100% { transform: translateY(-14px) scaleX(0.3); opacity: 0; }
+}
+
+@keyframes poo-clean-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes poo-clean-particle {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--clean-tx), var(--clean-ty)) scale(0); opacity: 0; }
+}
+
+@keyframes sickness-bubble {
+  0%, 100% { transform: scale(1); opacity: var(--bubble-opacity, 0.6); }
+  50% { transform: scale(1.35); opacity: calc(var(--bubble-opacity, 0.6) + 0.15); }
+}
+
+@keyframes dissolve-particle {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.9; }
+  100% { transform: translate(var(--dp-tx), var(--dp-ty)) scale(0); opacity: 0; }
+}
+
+@keyframes travel-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-2px, 1px); }
+  20% { transform: translate(1px, -2px); }
+  30% { transform: translate(-1px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  50% { transform: translate(-1px, -1px); }
+  60% { transform: translate(1px, 2px); }
+  70% { transform: translate(-2px, 0px); }
+  80% { transform: translate(1px, 1px); }
+  90% { transform: translate(0px, -2px); }
+}
+
+@keyframes planet-rotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes ring-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes lava-pulse {
+  0%, 100% { opacity: 0.7; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.5); }
+}

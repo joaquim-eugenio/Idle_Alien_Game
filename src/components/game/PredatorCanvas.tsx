@@ -1,20 +1,11 @@
 import { useRef, useEffect, memo } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import type { PredatorBug, PredatorSpecies } from '../../lib/types';
+import type { PredatorBug } from '../../lib/types';
 import { PREDATOR } from '../../lib/constants';
+import { getArchetype } from '../../lib/predatorArchetypes';
+import type { PredatorArchetype, PredatorColorPalette } from '../../lib/predatorArchetypes';
 
-interface PredatorColors { body: string; head: string; limbs: string; accent: string }
-
-const colorCache = new Map<string, PredatorColors>();
-
-const SPECIES_BASE: Record<PredatorSpecies, { body: string; head: string; limbs: string; accent: string }> = {
-  stalker:  { body: '#8B6914', head: '#6B4F10', limbs: '#5A3E0A', accent: '#D4A520' },
-  ravager:  { body: '#4A3E8C', head: '#2D2566', limbs: '#1A1540', accent: '#7B6BC4' },
-  lurker:   { body: '#6B2D73', head: '#4A1E50', limbs: '#2D1230', accent: '#CC3333' },
-  slasher:  { body: '#A0755A', head: '#7A5540', limbs: '#5A3D2B', accent: '#D4A070' },
-  devourer: { body: '#8C1A5A', head: '#661040', limbs: '#4A0A2D', accent: '#CC44AA' },
-  hunter:   { body: '#4A7A30', head: '#3A6020', limbs: '#2A4A15', accent: '#88CC55' },
-};
+const colorCache = new Map<string, PredatorColorPalette>();
 
 function hexToHSL(hex: string): [number, number, number] {
   const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
@@ -41,11 +32,11 @@ function shiftHex(hex: string, shift: number): string {
   return `hsl(${Math.round(((h + shift) % 360 + 360) % 360)},${Math.round(s)}%,${Math.round(l)}%)`;
 }
 
-function getColors(species: PredatorSpecies, hueShift: number): PredatorColors {
-  const key = `${species}:${Math.round(hueShift)}`;
+function getColors(archetype: PredatorArchetype, hueShift: number): PredatorColorPalette {
+  const key = `${archetype.id}:${Math.round(hueShift)}`;
   let c = colorCache.get(key);
   if (c) return c;
-  const b = SPECIES_BASE[species];
+  const b = archetype.palette;
   c = {
     body: shiftHex(b.body, hueShift),
     head: shiftHex(b.head, hueShift),
@@ -106,371 +97,145 @@ function drawClaw(ctx: CanvasRenderingContext2D, px: number, py: number, size: n
   ctx.restore();
 }
 
-type DrawFn = (ctx: CanvasRenderingContext2D, s: number, phase: number, c: PredatorColors) => void;
-
-// Stalker: Brown mantis with raised claws and segmented body
-const drawStalker: DrawFn = (ctx, s, phase, c) => {
-  const w = 14 * s, cx = w / 2;
-
-  // Legs
-  for (let i = 0; i < 3; i++) {
-    const swing = sin(phase + i * PI / 3) * 15;
-    const ly = (6 + i * 2.5) * s;
-    drawLimb(ctx, 1 * s, ly, 3 * s, -45 + swing, c.limbs, 1.2);
-    drawLimb(ctx, w - 1 * s, ly, 3 * s, 45 - swing, c.limbs, 1.2);
-  }
-
-  // Body segments
-  ctx.fillStyle = rg(ctx, cx, 10 * s, 4 * s, c.body, c.head);
-  ell(ctx, cx, 10 * s, 3 * s, 4 * s);
-  ctx.fillStyle = rg(ctx, cx, 6 * s, 2.5 * s, c.body, c.head);
-  ell(ctx, cx, 6 * s, 2.5 * s, 2 * s);
-
-  // Head
-  ctx.fillStyle = rg(ctx, cx, 2.5 * s, 2.5 * s, c.head, c.limbs);
-  ell(ctx, cx, 2.5 * s, 2.5 * s, 2 * s);
-
-  // Raised claw arms
-  const clawSwing = sin(phase * 1.5) * 10;
-  drawLimb(ctx, cx - 2 * s, 4 * s, 4 * s, -70 + clawSwing, c.accent, 1.5);
-  drawClaw(ctx, cx - 2 * s + cos((-70 + clawSwing) * DEG) * 0.1, 4 * s + sin((-70 + clawSwing) * DEG) * (-4 * s), 2.5 * s, -70 + clawSwing, c.accent);
-  drawLimb(ctx, cx + 2 * s, 4 * s, 4 * s, 70 - clawSwing, c.accent, 1.5);
-  drawClaw(ctx, cx + 2 * s + cos((70 - clawSwing) * DEG) * 0.1, 4 * s + sin((70 - clawSwing) * DEG) * (-4 * s), 2.5 * s, 70 - clawSwing, c.accent);
-
-  // Antennae
-  const aSwing = sin(phase * 2) * 5;
-  drawLimb(ctx, cx - 1 * s, 1 * s, 3 * s, -160 + aSwing, c.limbs, 0.7);
-  drawLimb(ctx, cx + 1 * s, 1 * s, 3 * s, 160 - aSwing, c.limbs, 0.7);
-
-  // Eyes
-  ctx.fillStyle = '#CC0000';
-  circ(ctx, cx - 1 * s, 2 * s, 0.8 * s);
-  circ(ctx, cx + 1 * s, 2 * s, 0.8 * s);
-  ctx.fillStyle = '#FFD700';
-  circ(ctx, cx - 1 * s, 1.9 * s, 0.35 * s);
-  circ(ctx, cx + 1 * s, 1.9 * s, 0.35 * s);
-};
-
-// Ravager: Blue-purple armored body with large pincers/horns
-const drawRavager: DrawFn = (ctx, s, phase, c) => {
+function drawProceduralPredator(ctx: CanvasRenderingContext2D, s: number, phase: number, c: PredatorColorPalette, arch: PredatorArchetype) {
   const w = 16 * s, cx = w / 2;
 
-  // Legs
-  for (let i = 0; i < 3; i++) {
-    const swing = sin(phase + i * PI / 3) * 12;
-    const ly = (7 + i * 2) * s;
-    drawLimb(ctx, 1.5 * s, ly, 3.5 * s, -50 + swing, c.limbs, 1.5);
-    drawLimb(ctx, w - 1.5 * s, ly, 3.5 * s, 50 - swing, c.limbs, 1.5);
+  // Draw Legs
+  let legPairs = 3;
+  let legLen = 3 * s;
+  let legWidth = 1;
+  let legSpread = 45;
+  let legStartY = 6 * s;
+  let legSpacing = 2 * s;
+
+  if (arch.legStyle === 'spider') { legPairs = 4; legLen = 3.5 * s; legSpread = 55; legStartY = 4 * s; }
+  else if (arch.legStyle === 'thick') { legLen = 3.5 * s; legWidth = 1.5; legSpread = 50; legStartY = 7 * s; }
+  else if (arch.legStyle === 'spindly') { legPairs = 4; legLen = 4.5 * s; legWidth = 0.8; legSpread = 60; legStartY = 5 * s; }
+
+  for (let i = 0; i < legPairs; i++) {
+    const swing = sin(phase + i * PI / legPairs) * 15;
+    const ly = legStartY + i * legSpacing;
+    drawLimb(ctx, 1.5 * s, ly, legLen, -legSpread + swing, c.limbs, legWidth);
+    drawLimb(ctx, w - 1.5 * s, ly, legLen, legSpread - swing, c.limbs, legWidth);
   }
 
-  // Armored shell
-  ctx.fillStyle = rg(ctx, cx, 8.5 * s, 5 * s, c.body, c.head);
-  ell(ctx, cx, 8.5 * s, 5 * s, 5 * s);
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  ell(ctx, cx - 1.5 * s, 7 * s, 1.5 * s, 1.2 * s);
-
-  // Armor plates
-  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(cx - 3 * s, 7 * s);
-  ctx.lineTo(cx + 3 * s, 7 * s);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx - 2.5 * s, 9.5 * s);
-  ctx.lineTo(cx + 2.5 * s, 9.5 * s);
-  ctx.stroke();
-
-  // Head
-  ctx.fillStyle = rg(ctx, cx, 3.5 * s, 3 * s, c.head, c.limbs);
-  ell(ctx, cx, 3.5 * s, 3.5 * s, 2.5 * s);
-
-  // Horns
-  const hornSwing = sin(phase * 0.8) * 3;
-  ctx.fillStyle = c.accent;
-  ctx.beginPath();
-  ctx.moveTo(cx - 2 * s, 2.5 * s);
-  ctx.lineTo(cx - 3.5 * s, -1 * s + hornSwing * 0.1);
-  ctx.lineTo(cx - 1.5 * s, 1.5 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(cx + 2 * s, 2.5 * s);
-  ctx.lineTo(cx + 3.5 * s, -1 * s - hornSwing * 0.1);
-  ctx.lineTo(cx + 1.5 * s, 1.5 * s);
-  ctx.closePath();
-  ctx.fill();
-
-  // Large pincers
-  const pSwing = sin(phase * 1.2) * 8;
-  drawLimb(ctx, cx - 3 * s, 5 * s, 5 * s, -80 + pSwing, c.accent, 2);
-  drawClaw(ctx, cx - 3 * s - sin((80 - pSwing) * DEG) * 5 * s, 5 * s - cos((80 - pSwing) * DEG) * 5 * s, 3.5 * s, -60 + pSwing, c.accent);
-  drawLimb(ctx, cx + 3 * s, 5 * s, 5 * s, 80 - pSwing, c.accent, 2);
-  drawClaw(ctx, cx + 3 * s + sin((80 - pSwing) * DEG) * 5 * s, 5 * s - cos((80 - pSwing) * DEG) * 5 * s, 3.5 * s, 60 - pSwing, c.accent);
-
-  // Eyes
-  ctx.fillStyle = '#6622CC';
-  circ(ctx, cx - 1.2 * s, 3 * s, 1 * s);
-  circ(ctx, cx + 1.2 * s, 3 * s, 1 * s);
-  ctx.fillStyle = '#EEDDFF';
-  circ(ctx, cx - 1.2 * s, 2.85 * s, 0.4 * s);
-  circ(ctx, cx + 1.2 * s, 2.85 * s, 0.4 * s);
-};
-
-// Lurker: Purple-red spider with 8 legs, skull-like marking
-const drawLurker: DrawFn = (ctx, s, phase, c) => {
-  const w = 16 * s, cx = w / 2;
-
-  // 8 spider legs
-  for (let i = 0; i < 4; i++) {
-    const swing = sin(phase + i * PI / 4) * 18;
-    const ly = (4 + i * 2) * s;
-    const len = (3.5 + (i < 2 ? 1 : 0)) * s;
-    drawLimb(ctx, 1 * s, ly, len, -55 + swing + i * 5, c.limbs, 1);
-    drawLimb(ctx, w - 1 * s, ly, len, 55 - swing - i * 5, c.limbs, 1);
+  // Draw Wings
+  if (arch.wingStyle === 'translucent') {
+    ctx.globalAlpha = 0.2 + sin(phase * 4) * 0.05;
+    ctx.fillStyle = c.accent;
+    ctx.save(); ctx.translate(cx - 2 * s, 5 * s); ctx.rotate(-15 * DEG); ell(ctx, 0, 0, 4 * s, 2 * s); ctx.restore();
+    ctx.save(); ctx.translate(cx + 2 * s, 5 * s); ctx.rotate(15 * DEG); ell(ctx, 0, 0, 4 * s, 2 * s); ctx.restore();
+    ctx.globalAlpha = 1;
+  } else if (arch.wingStyle === 'beetle') {
+    ctx.fillStyle = c.accent;
+    const wingOpen = abs(sin(phase * 2)) * 10;
+    ctx.save(); ctx.translate(cx - 1 * s, 4 * s); ctx.rotate(-wingOpen * DEG); ell(ctx, -1 * s, 3 * s, 2 * s, 4 * s); ctx.restore();
+    ctx.save(); ctx.translate(cx + 1 * s, 4 * s); ctx.rotate(wingOpen * DEG); ell(ctx, 1 * s, 3 * s, 2 * s, 4 * s); ctx.restore();
   }
 
-  // Abdomen
-  ctx.fillStyle = rg(ctx, cx, 9 * s, 4 * s, c.body, c.head);
-  ell(ctx, cx, 9 * s, 4 * s, 3.5 * s);
-
-  // Red stripes on abdomen
-  ctx.fillStyle = c.accent;
-  for (let i = 0; i < 3; i++) {
-    const sy = (7.5 + i * 1.2) * s;
-    ell(ctx, cx, sy, 2.5 * s, 0.3 * s);
+  // Draw Body
+  if (arch.bodyShape === 'segmented') {
+    ctx.fillStyle = rg(ctx, cx, 10 * s, 4 * s, c.body, c.head); ell(ctx, cx, 10 * s, 3 * s, 4 * s);
+    ctx.fillStyle = rg(ctx, cx, 6 * s, 2.5 * s, c.body, c.head); ell(ctx, cx, 6 * s, 2.5 * s, 2 * s);
+  } else if (arch.bodyShape === 'armored') {
+    ctx.fillStyle = rg(ctx, cx, 8.5 * s, 5 * s, c.body, c.head); ell(ctx, cx, 8.5 * s, 5 * s, 5 * s);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(cx - 3 * s, 7 * s); ctx.lineTo(cx + 3 * s, 7 * s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 2.5 * s, 9.5 * s); ctx.lineTo(cx + 2.5 * s, 9.5 * s); ctx.stroke();
+  } else if (arch.bodyShape === 'spider') {
+    ctx.fillStyle = rg(ctx, cx, 9 * s, 4 * s, c.body, c.head); ell(ctx, cx, 9 * s, 4 * s, 3.5 * s);
+    ctx.fillStyle = rg(ctx, cx, 4.5 * s, 3 * s, c.body, c.head); ell(ctx, cx, 4.5 * s, 3 * s, 2.5 * s);
+  } else if (arch.bodyShape === 'narrow') {
+    ctx.fillStyle = rg(ctx, cx, 7 * s, 3 * s, c.body, c.head); ell(ctx, cx, 7 * s, 2 * s, 4.5 * s);
+  } else if (arch.bodyShape === 'bulky') {
+    ctx.fillStyle = rg(ctx, cx, 7 * s, 5 * s, c.body, c.head); ell(ctx, cx, 7 * s, 4.5 * s, 5 * s);
   }
 
-  // Cephalothorax
-  ctx.fillStyle = rg(ctx, cx, 4.5 * s, 3 * s, c.body, c.head);
-  ell(ctx, cx, 4.5 * s, 3 * s, 2.5 * s);
-
-  // Skull marking
-  ctx.fillStyle = c.accent;
-  ell(ctx, cx, 4.5 * s, 1.5 * s, 1.2 * s);
-  ctx.fillStyle = c.head;
-  circ(ctx, cx - 0.5 * s, 4.2 * s, 0.3 * s);
-  circ(ctx, cx + 0.5 * s, 4.2 * s, 0.3 * s);
-
-  // Eyes (8 spider eyes in two rows)
-  ctx.fillStyle = '#FF2222';
-  circ(ctx, cx - 1 * s, 3.3 * s, 0.6 * s);
-  circ(ctx, cx + 1 * s, 3.3 * s, 0.6 * s);
-  circ(ctx, cx - 0.4 * s, 3 * s, 0.45 * s);
-  circ(ctx, cx + 0.4 * s, 3 * s, 0.45 * s);
-  ctx.fillStyle = '#111';
-  circ(ctx, cx - 1 * s, 3.3 * s, 0.25 * s);
-  circ(ctx, cx + 1 * s, 3.3 * s, 0.25 * s);
-};
-
-// Slasher: Tan/brown with long blade-like claws, spindly limbs
-const drawSlasher: DrawFn = (ctx, s, phase, c) => {
-  const w = 14 * s, cx = w / 2;
-
-  // Spindly legs
-  for (let i = 0; i < 4; i++) {
-    const swing = sin(phase + i * PI / 4) * 20;
-    const ly = (5 + i * 2) * s;
-    drawLimb(ctx, 2 * s, ly, 4.5 * s, -60 + swing, c.limbs, 0.8);
-    drawLimb(ctx, w - 2 * s, ly, 4.5 * s, 60 - swing, c.limbs, 0.8);
-  }
-
-  // Narrow body
-  ctx.fillStyle = rg(ctx, cx, 7 * s, 3 * s, c.body, c.head);
-  ell(ctx, cx, 7 * s, 2 * s, 4.5 * s);
-
-  // Head
-  ctx.fillStyle = rg(ctx, cx, 2 * s, 2 * s, c.head, c.limbs);
-  ell(ctx, cx, 2 * s, 2 * s, 1.8 * s);
-
-  // Long blade claws
-  const clawSwing = sin(phase * 1.8) * 12;
-  ctx.save();
-  ctx.strokeStyle = c.accent;
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  // Left blade
-  ctx.translate(cx - 2 * s, 3.5 * s);
-  ctx.rotate((-80 + clawSwing) * DEG);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, -6 * s);
-  ctx.stroke();
-  ctx.fillStyle = c.accent;
-  ctx.beginPath();
-  ctx.moveTo(-0.5 * s, -6 * s);
-  ctx.lineTo(0, -7.5 * s);
-  ctx.lineTo(0.5 * s, -6 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  ctx.strokeStyle = c.accent;
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  // Right blade
-  ctx.translate(cx + 2 * s, 3.5 * s);
-  ctx.rotate((80 - clawSwing) * DEG);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, -6 * s);
-  ctx.stroke();
-  ctx.fillStyle = c.accent;
-  ctx.beginPath();
-  ctx.moveTo(-0.5 * s, -6 * s);
-  ctx.lineTo(0, -7.5 * s);
-  ctx.lineTo(0.5 * s, -6 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  // Eyes
-  ctx.fillStyle = '#222';
-  circ(ctx, cx - 0.7 * s, 1.5 * s, 0.7 * s);
-  circ(ctx, cx + 0.7 * s, 1.5 * s, 0.7 * s);
-  ctx.fillStyle = '#FFCC00';
-  circ(ctx, cx - 0.7 * s, 1.4 * s, 0.3 * s);
-  circ(ctx, cx + 0.7 * s, 1.4 * s, 0.3 * s);
-};
-
-// Devourer: Magenta with single large eye-mouth, crab claws
-const drawDevourer: DrawFn = (ctx, s, phase, c) => {
-  const w = 14 * s, cx = w / 2;
-
-  // Thick legs
-  for (let i = 0; i < 2; i++) {
-    const swing = sin(phase + i * PI) * 15;
-    const ly = (8 + i * 2.5) * s;
-    drawLimb(ctx, 2 * s, ly, 4 * s, -50 + swing, c.limbs, 2);
-    drawLimb(ctx, w - 2 * s, ly, 4 * s, 50 - swing, c.limbs, 2);
-  }
-
-  // Bulky body
-  ctx.fillStyle = rg(ctx, cx, 7 * s, 5 * s, c.body, c.head);
-  ell(ctx, cx, 7 * s, 4.5 * s, 5 * s);
-
-  // Giant eye-mouth in center
-  ctx.fillStyle = '#FFEECC';
-  circ(ctx, cx, 6 * s, 2.5 * s);
-  ctx.fillStyle = c.accent;
-  circ(ctx, cx, 6 * s, 1.8 * s);
-  ctx.fillStyle = '#220011';
-  circ(ctx, cx, 6 * s, 1.2 * s);
-  // Pupil pulse
-  const pupilSize = 0.6 + sin(phase * 2) * 0.15;
-  ctx.fillStyle = '#FF0066';
-  circ(ctx, cx, 6 * s, pupilSize * s);
-
-  // Teeth ring around mouth
-  ctx.fillStyle = '#FFFFDD';
-  for (let i = 0; i < 8; i++) {
-    const ang = (i / 8) * PI * 2 + phase * 0.3;
-    const tx = cx + cos(ang) * 2 * s;
-    const ty = 6 * s + sin(ang) * 2 * s;
-    circ(ctx, tx, ty, 0.3 * s);
-  }
-
-  // Crab claws
-  const cSwing = sin(phase * 1.5) * 10;
-  drawLimb(ctx, cx - 3 * s, 4.5 * s, 4 * s, -75 + cSwing, c.accent, 2.5);
-  drawClaw(ctx, cx - 3 * s - sin((75 - cSwing) * DEG) * 4 * s, 4.5 * s - cos((75 - cSwing) * DEG) * 4 * s, 3 * s, -50 + cSwing, c.accent);
-  drawLimb(ctx, cx + 3 * s, 4.5 * s, 4 * s, 75 - cSwing, c.accent, 2.5);
-  drawClaw(ctx, cx + 3 * s + sin((75 - cSwing) * DEG) * 4 * s, 4.5 * s - cos((75 - cSwing) * DEG) * 4 * s, 3 * s, 50 - cSwing, c.accent);
-};
-
-// Hunter: Green with translucent wings, mantis head, tentacle arms
-const drawHunter: DrawFn = (ctx, s, phase, c) => {
-  const w = 14 * s, cx = w / 2;
-
-  // Legs
-  for (let i = 0; i < 3; i++) {
-    const swing = sin(phase + i * PI / 3) * 14;
-    const ly = (6.5 + i * 2) * s;
-    drawLimb(ctx, 1.5 * s, ly, 3 * s, -45 + swing, c.limbs, 1);
-    drawLimb(ctx, w - 1.5 * s, ly, 3 * s, 45 - swing, c.limbs, 1);
-  }
-
-  // Wings (translucent)
-  ctx.globalAlpha = 0.2 + sin(phase * 4) * 0.05;
-  ctx.fillStyle = c.accent;
-  ctx.save();
-  ctx.translate(cx - 2 * s, 5 * s);
-  ctx.rotate(-15 * DEG);
-  ell(ctx, 0, 0, 4 * s, 2 * s);
-  ctx.restore();
-  ctx.save();
-  ctx.translate(cx + 2 * s, 5 * s);
-  ctx.rotate(15 * DEG);
-  ell(ctx, 0, 0, 4 * s, 2 * s);
-  ctx.restore();
-  ctx.globalAlpha = 1;
-
-  // Abdomen
-  ctx.fillStyle = rg(ctx, cx, 9 * s, 3 * s, c.body, c.head);
-  ell(ctx, cx, 9 * s, 2.5 * s, 3.5 * s);
-
-  // Thorax
-  ctx.fillStyle = rg(ctx, cx, 5.5 * s, 2.5 * s, c.body, c.head);
-  ell(ctx, cx, 5.5 * s, 2 * s, 2 * s);
-
-  // Head (triangular mantis head)
-  ctx.fillStyle = rg(ctx, cx, 2.5 * s, 2 * s, c.head, c.limbs);
-  ctx.beginPath();
-  ctx.moveTo(cx, 0.5 * s);
-  ctx.lineTo(cx - 2 * s, 3.5 * s);
-  ctx.lineTo(cx + 2 * s, 3.5 * s);
-  ctx.closePath();
-  ctx.fill();
-
-  // Tentacle arms
-  const tSwing = sin(phase * 2) * 12;
-  for (let side = -1; side <= 1; side += 2) {
-    ctx.save();
-    ctx.translate(cx + side * 2 * s, 4.5 * s);
-    ctx.rotate((side * (60 - tSwing)) * DEG);
+  // Draw Pattern
+  if (arch.pattern === 'striped') {
     ctx.strokeStyle = c.accent;
-    ctx.lineWidth = 1.2;
-    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = 1.5 * s;
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    const cp1x = side * 1 * s;
-    const cp1y = -2 * s;
-    const cp2x = side * 0.5 * s;
-    const cp2y = -4 * s;
-    const ex = side * -0.5 * s;
-    const ey = -5 * s;
-    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, ex, ey);
+    ctx.moveTo(cx - 2 * s, 7 * s); ctx.lineTo(cx + 2 * s, 7 * s);
+    ctx.moveTo(cx - 2.5 * s, 9 * s); ctx.lineTo(cx + 2.5 * s, 9 * s);
+    ctx.moveTo(cx - 2 * s, 11 * s); ctx.lineTo(cx + 2 * s, 11 * s);
     ctx.stroke();
-    ctx.restore();
+    ctx.globalAlpha = 1;
+  } else if (arch.pattern === 'spotted') {
+    ctx.fillStyle = c.accent;
+    ctx.globalAlpha = 0.5;
+    circ(ctx, cx, 8 * s, 1.5 * s);
+    circ(ctx, cx - 1.5 * s, 10 * s, 1 * s);
+    circ(ctx, cx + 1.5 * s, 10 * s, 1 * s);
+    ctx.globalAlpha = 1;
   }
 
-  // Large compound eyes
-  ctx.fillStyle = '#00CC44';
-  circ(ctx, cx - 1.2 * s, 2 * s, 0.9 * s);
-  circ(ctx, cx + 1.2 * s, 2 * s, 0.9 * s);
-  ctx.fillStyle = '#003311';
-  circ(ctx, cx - 1.2 * s, 2 * s, 0.4 * s);
-  circ(ctx, cx + 1.2 * s, 2 * s, 0.4 * s);
-};
+  // Draw Head
+  let headY = 2.5 * s;
+  if (arch.headShape === 'round') {
+    ctx.fillStyle = rg(ctx, cx, headY, 2.5 * s, c.head, c.limbs); ell(ctx, cx, headY, 2.5 * s, 2 * s);
+  } else if (arch.headShape === 'triangular') {
+    ctx.fillStyle = rg(ctx, cx, headY, 2 * s, c.head, c.limbs);
+    ctx.beginPath(); ctx.moveTo(cx, 0.5 * s); ctx.lineTo(cx - 2 * s, 3.5 * s); ctx.lineTo(cx + 2 * s, 3.5 * s); ctx.closePath(); ctx.fill();
+  } else if (arch.headShape === 'wide') {
+    ctx.fillStyle = rg(ctx, cx, 3.5 * s, 3 * s, c.head, c.limbs); ell(ctx, cx, 3.5 * s, 3.5 * s, 2.5 * s);
+    headY = 3.5 * s;
+  }
 
-const DRAW_FNS: Record<PredatorSpecies, DrawFn> = {
-  stalker: drawStalker,
-  ravager: drawRavager,
-  lurker: drawLurker,
-  slasher: drawSlasher,
-  devourer: drawDevourer,
-  hunter: drawHunter,
-};
+  // Draw Arms
+  const armSwing = sin(phase * 1.5) * 10;
+  if (arch.armStyle === 'claws') {
+    drawLimb(ctx, cx - 2 * s, 4 * s, 4 * s, -70 + armSwing, c.accent, 1.5);
+    drawClaw(ctx, cx - 2 * s + cos((-70 + armSwing) * DEG) * 0.1, 4 * s + sin((-70 + armSwing) * DEG) * (-4 * s), 2.5 * s, -70 + armSwing, c.accent);
+    drawLimb(ctx, cx + 2 * s, 4 * s, 4 * s, 70 - armSwing, c.accent, 1.5);
+    drawClaw(ctx, cx + 2 * s + cos((70 - armSwing) * DEG) * 0.1, 4 * s + sin((70 - armSwing) * DEG) * (-4 * s), 2.5 * s, 70 - armSwing, c.accent);
+  } else if (arch.armStyle === 'pincers') {
+    drawLimb(ctx, cx - 3 * s, 5 * s, 5 * s, -80 + armSwing, c.accent, 2);
+    drawClaw(ctx, cx - 3 * s - sin((80 - armSwing) * DEG) * 5 * s, 5 * s - cos((80 - armSwing) * DEG) * 5 * s, 3.5 * s, -60 + armSwing, c.accent);
+    drawLimb(ctx, cx + 3 * s, 5 * s, 5 * s, 80 - armSwing, c.accent, 2);
+    drawClaw(ctx, cx + 3 * s + sin((80 - armSwing) * DEG) * 5 * s, 5 * s - cos((80 - armSwing) * DEG) * 5 * s, 3.5 * s, 60 - armSwing, c.accent);
+  } else if (arch.armStyle === 'blades') {
+    ctx.save(); ctx.strokeStyle = c.accent; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.translate(cx - 2 * s, 3.5 * s); ctx.rotate((-80 + armSwing) * DEG);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -6 * s); ctx.stroke();
+    ctx.fillStyle = c.accent; ctx.beginPath(); ctx.moveTo(-0.5 * s, -6 * s); ctx.lineTo(0, -7.5 * s); ctx.lineTo(0.5 * s, -6 * s); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.save(); ctx.strokeStyle = c.accent; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.translate(cx + 2 * s, 3.5 * s); ctx.rotate((80 - armSwing) * DEG);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -6 * s); ctx.stroke();
+    ctx.fillStyle = c.accent; ctx.beginPath(); ctx.moveTo(-0.5 * s, -6 * s); ctx.lineTo(0, -7.5 * s); ctx.lineTo(0.5 * s, -6 * s); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  } else if (arch.armStyle === 'tentacles') {
+    for (let side = -1; side <= 1; side += 2) {
+      ctx.save(); ctx.translate(cx + side * 2 * s, 4.5 * s); ctx.rotate((side * (60 - armSwing)) * DEG);
+      ctx.strokeStyle = c.accent; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(side * 1 * s, -2 * s, side * 0.5 * s, -4 * s, side * -0.5 * s, -5 * s);
+      ctx.stroke(); ctx.restore();
+    }
+  }
 
-const DIMS: Record<PredatorSpecies, [number, number]> = {
-  stalker:  [28, 28],
-  ravager:  [32, 28],
-  lurker:   [32, 26],
-  slasher:  [28, 24],
-  devourer: [28, 24],
-  hunter:   [28, 26],
-};
+  // Draw Eyes
+  if (arch.eyeStyle === 'compound') {
+    ctx.fillStyle = '#00CC44'; circ(ctx, cx - 1.2 * s, headY - 0.5 * s, 0.9 * s); circ(ctx, cx + 1.2 * s, headY - 0.5 * s, 0.9 * s);
+    ctx.fillStyle = '#003311'; circ(ctx, cx - 1.2 * s, headY - 0.5 * s, 0.4 * s); circ(ctx, cx + 1.2 * s, headY - 0.5 * s, 0.4 * s);
+  } else if (arch.eyeStyle === 'spider') {
+    ctx.fillStyle = '#FF2222';
+    circ(ctx, cx - 1 * s, headY - 1.2 * s, 0.6 * s); circ(ctx, cx + 1 * s, headY - 1.2 * s, 0.6 * s);
+    circ(ctx, cx - 0.4 * s, headY - 1.5 * s, 0.45 * s); circ(ctx, cx + 0.4 * s, headY - 1.5 * s, 0.45 * s);
+    ctx.fillStyle = '#111';
+    circ(ctx, cx - 1 * s, headY - 1.2 * s, 0.25 * s); circ(ctx, cx + 1 * s, headY - 1.2 * s, 0.25 * s);
+  } else if (arch.eyeStyle === 'cyclops') {
+    ctx.fillStyle = '#FFEECC'; circ(ctx, cx, headY, 1.5 * s);
+    ctx.fillStyle = c.accent; circ(ctx, cx, headY, 1 * s);
+    ctx.fillStyle = '#220011'; circ(ctx, cx, headY, 0.5 * s);
+  } else if (arch.eyeStyle === 'slit') {
+    ctx.fillStyle = '#FFCC00';
+    ctx.save(); ctx.translate(cx - 1 * s, headY - 0.5 * s); ctx.rotate(-20 * DEG); ell(ctx, 0, 0, 0.8 * s, 0.3 * s); ctx.restore();
+    ctx.save(); ctx.translate(cx + 1 * s, headY - 0.5 * s); ctx.rotate(20 * DEG); ell(ctx, 0, 0, 0.8 * s, 0.3 * s); ctx.restore();
+  }
+}
 
 const SPAWN_MS = 500;
 
@@ -493,9 +258,13 @@ function drawHpBar(ctx: CanvasRenderingContext2D, x: number, y: number, hp: numb
 }
 
 function renderPredator(ctx: CanvasRenderingContext2D, pred: PredatorBug, now: number) {
-  const c = getColors(pred.species, pred.hueShift);
+  const archetype = getArchetype(pred.archetypeId);
+  if (!archetype) return;
+
+  const c = getColors(archetype, pred.hueShift);
   const s = pred.sizeScale * 0.85;
-  const [bw, bh] = DIMS[pred.species];
+  const bw = 30;
+  const bh = 30;
   const rotation = pred.angle + PI / 2;
 
   const age = now - pred.spawnedAt;
@@ -506,7 +275,6 @@ function renderPredator(ctx: CanvasRenderingContext2D, pred: PredatorBug, now: n
     alpha = min(1, t * 2);
   }
 
-  // Death shrink animation
   if (pred.hp <= 0) {
     const deathAge = now - pred.lastDamageTime;
     const deathT = min(1, deathAge / PREDATOR.DEATH_ANIM_MS);
@@ -519,7 +287,6 @@ function renderPredator(ctx: CanvasRenderingContext2D, pred: PredatorBug, now: n
   ctx.globalAlpha = alpha;
   ctx.translate(pred.x, pred.y);
 
-  // HP bar (drawn above, before rotation so it stays horizontal)
   if (pred.hp > 0) {
     const barWidth = bw * s * 0.7;
     drawHpBar(ctx, 0, -(bh * s) / 2 - 4, pred.hp, pred.maxHp, barWidth);
@@ -529,7 +296,6 @@ function renderPredator(ctx: CanvasRenderingContext2D, pred: PredatorBug, now: n
   ctx.scale(sc, sc);
   ctx.translate(-(bw * s) / 2, -(bh * s) / 2);
 
-  // Damage flash or menacing aura glow
   const timeSinceDamage = now - pred.lastDamageTime;
   if (timeSinceDamage < PREDATOR.DAMAGE_FLASH_MS && pred.hp > 0) {
     ctx.shadowColor = 'rgba(255,0,0,0.8)';
@@ -539,11 +305,10 @@ function renderPredator(ctx: CanvasRenderingContext2D, pred: PredatorBug, now: n
     ctx.shadowBlur = 4;
   }
 
-  DRAW_FNS[pred.species](ctx, s, pred.walkPhase, c);
+  drawProceduralPredator(ctx, s, pred.walkPhase, c, archetype);
 
   ctx.shadowBlur = 0;
 
-  // Damage flash overlay
   if (timeSinceDamage < PREDATOR.DAMAGE_FLASH_MS && pred.hp > 0) {
     const flashAlpha = 0.3 * (1 - timeSinceDamage / PREDATOR.DAMAGE_FLASH_MS);
     ctx.globalAlpha = flashAlpha;

@@ -7,6 +7,7 @@ export type HornType = 'none' | 'single' | 'double' | 'antlers' | 'spikes';
 export type EyePlacement = 'face' | 'stalks' | 'top';
 export type MouthStyle = 'dot' | 'smile' | 'open' | 'teeth' | 'fangs';
 export type BugSpecies = 'ant' | 'beetle' | 'cricket' | 'centipede' | 'ladybug';
+export type PredatorSpecies = 'stalker' | 'ravager' | 'lurker' | 'slasher' | 'devourer' | 'hunter';
 export type SicknessLevel = 'none' | 'light' | 'mid' | 'heavy';
 
 export type PlanetMaterial = 'rock' | 'ice' | 'fire';
@@ -111,6 +112,24 @@ export interface Bug {
   walkPhase: number;
 }
 
+export interface PredatorBug {
+  id: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  energyValue: number;
+  species: PredatorSpecies;
+  hueShift: number;
+  sizeScale: number;
+  spawnedAt: number;
+  angle: number;
+  walkPhase: number;
+  targetBugId: string | null;
+  eatingProgress: number;
+  lastDamageTime: number;
+}
+
 export interface Plant {
   id: string;
   x: number;
@@ -153,18 +172,21 @@ export interface GameState {
   totalEnergyEarned: number;
   aliens: Alien[];
   bugs: Bug[];
+  predatorBugs: PredatorBug[];
   plants: Plant[];
   upgrades: Upgrades;
   reproductionCost: number;
   worldSize: WorldSize;
   bugSpawnTimer: number;
   plantSpawnTimer: number;
+  predatorSpawnTimer: number;
   totalBugsEaten: number;
   totalReproductions: number;
   collisionEvents: CollisionEvent[];
   poos: Poo[];
   currentGalaxyId: number;
   isTraveling: boolean;
+  defeatedAlien: Alien | null;
 }
 
 export interface GameActions {
@@ -174,6 +196,8 @@ export interface GameActions {
   upgradeSpeed: () => boolean;
   upgradeBugRate: () => boolean;
   removePoo: (id: string) => void;
+  clearAllPoos: () => void;
+  clearDefeatedAlien: () => void;
   removeAlien: (id: string) => void;
   healAlien: (id: string) => void;
   addEnergy: (amount: number) => void;
@@ -185,7 +209,7 @@ export interface GameActions {
   setTraveling: (v: boolean) => void;
 }
 
-export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'collisionEvents'> & { collisionEvents: CollisionEvent[]; poos: Poo[] };
+export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'predatorSpawnTimer' | 'collisionEvents' | 'defeatedAlien'> & { collisionEvents: CollisionEvent[]; poos: Poo[] };
 
 export interface ShopProduct {
   id: string;

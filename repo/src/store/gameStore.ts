@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { GameState, GameActions, Bug, Plant, Poo, SerializableGameState, BugSpecies, CollisionEvent } from '../lib/types';
-import { GAME, SPAWN, ENERGY, ALIEN, COSTS, UPGRADES, SICKNESS, GALAXY } from '../lib/constants';
+import type { GameState, GameActions, Bug, Plant, Poo, PredatorBug, SerializableGameState, BugSpecies, PredatorSpecies, CollisionEvent } from '../lib/types';
+import { GAME, SPAWN, ENERGY, ALIEN, COSTS, UPGRADES, SICKNESS, GALAXY, PREDATOR } from '../lib/constants';
 import { distance, maybe, randomRange, uid, normalize, lerp, randomPick } from '../lib/utils';
 import { createAlien, generateRandomTraits, mutateTraits } from '../lib/alienGenerator';
 import { getNextGalaxy } from '../lib/galaxyData';
@@ -20,18 +20,21 @@ function createInitialState(): GameState {
     totalEnergyEarned: 0,
     aliens: [createAlien(w, h, generateRandomTraits(), 0, ALIEN.BASE_SPEED)],
     bugs: initialBugs,
+    predatorBugs: [],
     plants: [],
     upgrades: { eatingCapacity: 1, alienSpeed: 0, bugSpawnRate: 0 },
     reproductionCost: COSTS.REPRODUCTION_BASE,
     worldSize: { width: w, height: h },
     bugSpawnTimer: 0,
     plantSpawnTimer: 0,
+    predatorSpawnTimer: 0,
     totalBugsEaten: 0,
     totalReproductions: 0,
     collisionEvents: [],
     poos: [],
     currentGalaxyId: 0,
     isTraveling: false,
+    defeatedAlien: null,
   };
 }
 
@@ -119,6 +122,71 @@ function getSpeciesSpeedMultiplier(species: BugSpecies): number {
   }
 }
 
+const WEIGHTED_PREDATOR_SPECIES: readonly PredatorSpecies[] = [
+  'stalker', 'stalker', 'stalker',
+  'hunter', 'hunter',
+  'lurker', 'lurker',
+  'slasher', 'slasher',
+  'devourer',
+  'ravager',
+];
+
+function getPredatorHp(species: PredatorSpecies): number {
+  switch (species) {
+    case 'stalker': return 3;
+    case 'hunter': return 4;
+    case 'lurker': return 5;
+    case 'slasher': return 5;
+    case 'devourer': return 6;
+    case 'ravager': return 8;
+  }
+}
+
+function getPredatorEnergy(species: PredatorSpecies): number {
+  switch (species) {
+    case 'stalker': return 15;
+    case 'hunter': return 20;
+    case 'lurker': return 25;
+    case 'slasher': return 25;
+    case 'devourer': return 35;
+    case 'ravager': return 50;
+  }
+}
+
+function getPredatorSpeedMultiplier(species: PredatorSpecies): number {
+  switch (species) {
+    case 'ravager': return 0.7;
+    case 'devourer': return 0.8;
+    case 'lurker': return 0.85;
+    case 'slasher': return 0.95;
+    case 'stalker': return 1.0;
+    case 'hunter': return 1.1;
+  }
+}
+
+function spawnPredatorBug(worldWidth: number, worldHeight: number): PredatorBug {
+  const species = randomPick(WEIGHTED_PREDATOR_SPECIES);
+  const hp = getPredatorHp(species);
+  const margin = 30;
+  return {
+    id: uid(),
+    x: randomRange(margin, worldWidth - margin),
+    y: randomRange(margin, worldHeight - margin),
+    hp,
+    maxHp: hp,
+    energyValue: getPredatorEnergy(species),
+    species,
+    hueShift: randomRange(-20, 20),
+    sizeScale: randomRange(1.8, 2.4),
+    spawnedAt: Date.now(),
+    angle: randomRange(0, Math.PI * 2),
+    walkPhase: randomRange(0, Math.PI * 2),
+    targetBugId: null,
+    eatingProgress: 0,
+    lastDamageTime: 0,
+  };
+}
+
 export const useGameStore = create<GameState & GameActions>((set, get) => ({
   ...createInitialState(),
 
@@ -181,9 +249,99 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         next.plantSpawnTimer = 0;
       }
 
+      // --- Spawn predator bugs ---
+      next.predatorSpawnTimer += delta;
+      const aliveAlienCount = next.aliens.filter(a => !a.isDying).length;
+      if (aliveAlienCount >= PREDATOR.MIN_SPAWN_ALIENS
+        && next.predatorSpawnTimer >= PREDATOR.SPAWN_INTERVAL
+        && next.predatorBugs.length < PREDATOR.MAX_PREDATORS) {
+        next.predatorBugs = [...next.predatorBugs, spawnPredatorBug(ww, wh)];
+        next.predatorSpawnTimer = 0;
+      }
+
+      // --- Move predator bugs & hunt regular bugs ---
+      const predatorEatenBugIds = new Set<string>();
+      for (let pi = 0; pi < next.predatorBugs.length; pi++) {
+        const p = next.predatorBugs[pi];
+        if (p.hp <= 0) continue;
+        p.walkPhase += delta * 3;
+
+        if (p.eatingProgress > 0) {
+          p.eatingProgress += delta / PREDATOR.EATING_DURATION;
+          if (p.eatingProgress >= 1) {
+            p.eatingProgress = 0;
+            p.targetBugId = null;
+          }
+          continue;
+        }
+
+        let huntTarget: { id: string; x: number; y: number } | null = null;
+        let huntDist = PREDATOR.HUNT_RANGE;
+
+        if (p.targetBugId) {
+          for (let bi = 0; bi < next.bugs.length; bi++) {
+            const b = next.bugs[bi];
+            if (b.id === p.targetBugId && !predatorEatenBugIds.has(b.id)) {
+              huntTarget = { id: b.id, x: b.x, y: b.y };
+              huntDist = distance(p.x, p.y, b.x, b.y);
+              break;
+            }
+          }
+        }
+
+        if (!huntTarget) {
+          for (let bi = 0; bi < next.bugs.length; bi++) {
+            const b = next.bugs[bi];
+            if (predatorEatenBugIds.has(b.id)) continue;
+            const d = distance(p.x, p.y, b.x, b.y);
+            if (d < huntDist) {
+              huntDist = d;
+              huntTarget = { id: b.id, x: b.x, y: b.y };
+            }
+          }
+        }
+
+        const pSpeed = PREDATOR.SPEED * getPredatorSpeedMultiplier(p.species);
+
+        if (huntTarget) {
+          p.targetBugId = huntTarget.id;
+          if (huntDist <= PREDATOR.EATING_RANGE) {
+            p.eatingProgress = 0.01;
+            predatorEatenBugIds.add(huntTarget.id);
+          } else {
+            const dir = normalize(huntTarget.x - p.x, huntTarget.y - p.y);
+            p.angle = Math.atan2(dir.y, dir.x);
+            p.x += dir.x * pSpeed * delta;
+            p.y += dir.y * pSpeed * delta;
+          }
+        } else {
+          p.targetBugId = null;
+          if (maybe(0.008)) p.angle += randomRange(-0.5, 0.5);
+          p.x += Math.cos(p.angle) * pSpeed * 0.4 * delta;
+          p.y += Math.sin(p.angle) * pSpeed * 0.4 * delta;
+        }
+
+        const pMargin = PREDATOR.SIZE;
+        if (p.x < pMargin || p.x > ww - pMargin) {
+          p.angle = Math.PI - p.angle;
+          p.x = Math.max(pMargin, Math.min(ww - pMargin, p.x));
+        }
+        if (p.y < pMargin || p.y > wh - pMargin) {
+          p.angle = -p.angle;
+          p.y = Math.max(pMargin, Math.min(wh - pMargin, p.y));
+        }
+      }
+
+      // Remove bugs eaten by predators
+      if (predatorEatenBugIds.size > 0) {
+        if (!bugsArrayDirty) { next.bugs = next.bugs.slice(); bugsArrayDirty = true; }
+        next.bugs = next.bugs.filter((b) => !predatorEatenBugIds.has(b.id));
+      }
+
       const speed = getAlienSpeed(next);
       const eatenBugIds = new Set<string>();
       const eatenPlantIds = new Set<string>();
+      const killedPredatorIds = new Set<string>();
       const claimedTargetIds = new Set<string>();
       let energyGained = 0;
       let bugsEatenCount = 0;
@@ -207,8 +365,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
           continue;
         }
 
-        // Find nearest target without creating intermediate arrays
-        type TargetRef = { id: string; x: number; y: number; energyValue: number; kind: 'bug' | 'plant' };
+        type TargetRef = { id: string; x: number; y: number; energyValue: number; kind: 'bug' | 'plant' | 'predator' };
         let bestTarget: TargetRef | null = null;
         let bestDist = Infinity;
         let currentTarget: TargetRef | null = null;
@@ -230,6 +387,18 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
           }
           const d = distance(a.x, a.y, p.x, p.y);
           if (d < bestDist) { bestDist = d; bestTarget = { id: p.id, x: p.x, y: p.y, energyValue: p.energyValue, kind: 'plant' }; }
+        }
+
+        // Predator bugs as targets (only if closer than bestDist * 1.5 to avoid deprioritizing food too much)
+        for (let ri = 0; ri < next.predatorBugs.length; ri++) {
+          const r = next.predatorBugs[ri];
+          if (r.hp <= 0 || killedPredatorIds.has(r.id) || claimedTargetIds.has(r.id)) continue;
+          if (a.targetId && r.id === a.targetId) {
+            currentTarget = { id: r.id, x: r.x, y: r.y, energyValue: r.energyValue, kind: 'predator' };
+          }
+          const d = distance(a.x, a.y, r.x, r.y);
+          const effectiveDist = d * 1.5;
+          if (effectiveDist < bestDist) { bestDist = effectiveDist; bestTarget = { id: r.id, x: r.x, y: r.y, energyValue: r.energyValue, kind: 'predator' }; }
         }
 
         const target = currentTarget ?? bestTarget;
@@ -262,61 +431,79 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         const dist = distance(a.x, a.y, target.x, target.y);
 
         if (dist <= ALIEN.EATING_RANGE) {
-          a.eatingProgress = 0.01;
-          let eaten = 0;
-          let personalBugsEaten = 0;
-
-          // Find nearby targets for multi-eat without sorting full array
-          const eatRange = ALIEN.EATING_RANGE * 1.5;
-          const eatCap = next.upgrades.eatingCapacity;
-
-          // Eat the primary target first
-          if (target.kind === 'bug') { eatenBugIds.add(target.id); bugsEatenCount++; personalBugsEaten++; }
-          else { eatenPlantIds.add(target.id); }
-          claimedTargetIds.add(target.id);
-          energyGained += target.energyValue;
-          eaten++;
-
-          if (eaten < eatCap) {
-            for (let bi = 0; bi < next.bugs.length && eaten < eatCap; bi++) {
-              const b = next.bugs[bi];
-              if (eatenBugIds.has(b.id) || claimedTargetIds.has(b.id)) continue;
-              if (distance(a.x, a.y, b.x, b.y) <= eatRange) {
-                eatenBugIds.add(b.id); claimedTargetIds.add(b.id);
-                energyGained += b.energyValue; bugsEatenCount++; personalBugsEaten++; eaten++;
+          if (target.kind === 'predator') {
+            // Attack the predator bug: deal damage instead of eating
+            a.eatingProgress = 0.01;
+            for (let ri = 0; ri < next.predatorBugs.length; ri++) {
+              const r = next.predatorBugs[ri];
+              if (r.id === target.id) {
+                r.hp -= PREDATOR.DAMAGE_PER_HIT;
+                r.lastDamageTime = Date.now();
+                if (r.hp <= 0) {
+                  killedPredatorIds.add(r.id);
+                  energyGained += r.energyValue;
+                  bugsEatenCount++;
+                }
+                break;
               }
             }
-          }
-          if (eaten < eatCap) {
-            for (let pi = 0; pi < next.plants.length && eaten < eatCap; pi++) {
-              const p = next.plants[pi];
-              if (eatenPlantIds.has(p.id) || claimedTargetIds.has(p.id)) continue;
-              if (distance(a.x, a.y, p.x, p.y) <= eatRange) {
-                eatenPlantIds.add(p.id); claimedTargetIds.add(p.id);
-                energyGained += p.energyValue; eaten++;
+            a.vx = lerp(a.vx, 0, 10 * delta);
+            a.vy = lerp(a.vy, 0, 10 * delta);
+          } else {
+            a.eatingProgress = 0.01;
+            let eaten = 0;
+            let personalBugsEaten = 0;
+
+            const eatRange = ALIEN.EATING_RANGE * 1.5;
+            const eatCap = next.upgrades.eatingCapacity;
+
+            if (target.kind === 'bug') { eatenBugIds.add(target.id); bugsEatenCount++; personalBugsEaten++; }
+            else { eatenPlantIds.add(target.id); }
+            claimedTargetIds.add(target.id);
+            energyGained += target.energyValue;
+            eaten++;
+
+            if (eaten < eatCap) {
+              for (let bi = 0; bi < next.bugs.length && eaten < eatCap; bi++) {
+                const b = next.bugs[bi];
+                if (eatenBugIds.has(b.id) || claimedTargetIds.has(b.id)) continue;
+                if (distance(a.x, a.y, b.x, b.y) <= eatRange) {
+                  eatenBugIds.add(b.id); claimedTargetIds.add(b.id);
+                  energyGained += b.energyValue; bugsEatenCount++; personalBugsEaten++; eaten++;
+                }
               }
             }
-          }
-          const prevPooTier = Math.floor((a.bugsEaten) / 10);
-          a.bugsEaten += personalBugsEaten;
-          const newPooTier = Math.floor(a.bugsEaten / 10);
-          if (newPooTier > prevPooTier) {
-            const poosToAdd = newPooTier - prevPooTier;
-            for (let pt = 0; pt < poosToAdd; pt++) {
-              newPoos.push({
-                id: uid(),
-                x: a.x + randomRange(-15, 15),
-                y: a.y + randomRange(15, 30),
-                spawnedAt: Date.now(),
-                alienColor: a.traits.bodyColor,
-                alienId: a.id,
-              });
+            if (eaten < eatCap) {
+              for (let pi = 0; pi < next.plants.length && eaten < eatCap; pi++) {
+                const p = next.plants[pi];
+                if (eatenPlantIds.has(p.id) || claimedTargetIds.has(p.id)) continue;
+                if (distance(a.x, a.y, p.x, p.y) <= eatRange) {
+                  eatenPlantIds.add(p.id); claimedTargetIds.add(p.id);
+                  energyGained += p.energyValue; eaten++;
+                }
+              }
             }
-            a.uncleanedPooCount += poosToAdd;
-            a.lastPooBugsEaten = a.bugsEaten;
+            const prevPooTier = Math.floor((a.bugsEaten) / 10);
+            a.bugsEaten += personalBugsEaten;
+            const newPooTier = Math.floor(a.bugsEaten / 10);
+            if (newPooTier > prevPooTier) {
+              const poosToAdd = newPooTier - prevPooTier;
+              for (let pt = 0; pt < poosToAdd; pt++) {
+                newPoos.push({
+                  id: uid(),
+                  x: a.x + randomRange(-15, 15),
+                  y: a.y + randomRange(15, 30),
+                  spawnedAt: Date.now(),
+                  alienColor: a.traits.bodyColor,
+                  alienId: a.id,
+                });
+              }
+              a.uncleanedPooCount += poosToAdd;
+              a.lastPooBugsEaten = a.bugsEaten;
+            }
+            a.vx = lerp(a.vx, 0, 10 * delta);
+            a.vy = lerp(a.vy, 0, 10 * delta);
           }
-          a.vx = lerp(a.vx, 0, 10 * delta);
-          a.vy = lerp(a.vy, 0, 10 * delta);
         } else {
           const dir = normalize(target.x - a.x, target.y - a.y);
           const approachFactor = dist < ALIEN.EATING_RANGE * 3
@@ -430,13 +617,20 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       }
 
       // --- Sickness derivation and death ---
+      let aliveCount = next.aliens.filter(a => !a.isDying).length;
       for (const a of next.aliens) {
         if (a.isDying) continue;
         const count = a.uncleanedPooCount;
         if (count >= SICKNESS.DEATH_THRESHOLD) {
+          if (aliveCount <= 1) {
+            a.sicknessLevel = 'heavy';
+            continue;
+          }
           a.isDying = true;
           a.deathTime = now;
           a.sicknessLevel = 'heavy';
+          next.defeatedAlien = { ...a };
+          aliveCount--;
         } else if (count >= SICKNESS.HEAVY_THRESHOLD) {
           a.sicknessLevel = 'heavy';
         } else if (count >= SICKNESS.MID_THRESHOLD) {
@@ -461,6 +655,14 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       }
       if (eatenPlantIds.size > 0) {
         next.plants = next.plants.filter((p) => !eatenPlantIds.has(p.id));
+      }
+
+      // Remove killed predator bugs (after death animation)
+      const nowMs = Date.now();
+      if (killedPredatorIds.size > 0 || next.predatorBugs.some(p => p.hp <= 0 && nowMs - p.lastDamageTime >= PREDATOR.DEATH_ANIM_MS)) {
+        next.predatorBugs = next.predatorBugs.filter(
+          (p) => p.hp > 0 || (nowMs - p.lastDamageTime < PREDATOR.DEATH_ANIM_MS)
+        );
       }
 
       if (newPoos.length > 0) {
@@ -580,6 +782,23 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     });
   },
 
+  clearAllPoos: () => {
+    set((state) => ({
+      poos: [],
+      aliens: state.aliens.map((a) => ({
+        ...a,
+        uncleanedPooCount: 0,
+        sicknessLevel: 'none' as const,
+        isDying: false,
+        deathTime: undefined,
+      })),
+    }));
+  },
+
+  clearDefeatedAlien: () => {
+    set({ defeatedAlien: null });
+  },
+
   removeAlien: (id: string) => {
     set((state) => ({
       aliens: state.aliens.filter((a) => a.id !== id),
@@ -642,10 +861,20 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         ...p,
         variant: p.variant ?? Math.floor(randomRange(0, 10)),
       })),
+      predatorBugs: (saved.predatorBugs ?? current.predatorBugs ?? []).map((p) => ({
+        ...p,
+        targetBugId: null,
+        eatingProgress: 0,
+        lastDamageTime: p.lastDamageTime ?? 0,
+        walkPhase: p.walkPhase ?? randomRange(0, Math.PI * 2),
+        angle: p.angle ?? randomRange(0, Math.PI * 2),
+      })),
       currentGalaxyId: saved.currentGalaxyId ?? current.currentGalaxyId ?? 0,
       isTraveling: false,
+      defeatedAlien: null,
       bugSpawnTimer: 0,
       plantSpawnTimer: 0,
+      predatorSpawnTimer: 0,
     }));
   },
 
@@ -656,6 +885,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       totalEnergyEarned: state.totalEnergyEarned,
       aliens: state.aliens.filter((a) => !a.isDying).map((a) => ({ ...a, eatingProgress: 0, targetId: null, wanderTarget: null, isColliding: false, angryUntil: 0, lastFartTime: 0, isDying: false, deathTime: undefined })),
       bugs: state.bugs,
+      predatorBugs: state.predatorBugs.filter(p => p.hp > 0).map(p => ({ ...p, targetBugId: null, eatingProgress: 0 })),
       plants: state.plants,
       upgrades: state.upgrades,
       reproductionCost: state.reproductionCost,

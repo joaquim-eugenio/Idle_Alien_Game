@@ -22,6 +22,16 @@
   user-select: none;
 }
 
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar {
+  display: none;
+}
+
+.overflow-x-auto,
+.overflow-y-auto {
+  -ms-overflow-style: none;
+}
+
 @keyframes pulse-glow {
   0%, 100% { filter: drop-shadow(0 0 4px var(--color-energy-glow)); }
   50% { filter: drop-shadow(0 0 12px var(--color-energy-glow)); }

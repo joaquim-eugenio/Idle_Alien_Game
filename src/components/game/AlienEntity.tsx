@@ -917,6 +917,12 @@ export const AlienEntity = memo(function AlienEntity({ alien, isBirthing = false
         ? 'saturate(0.7) hue-rotate(18deg)'
         : 'saturate(0.5) hue-rotate(30deg) brightness(0.9)';
 
+  const timeSinceDamage = alien.lastDamageTime ? Date.now() - alien.lastDamageTime : Infinity;
+  const isTakingDamage = timeSinceDamage < 200;
+  const damageFilter = isTakingDamage ? 'brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(5)' : undefined;
+  
+  const combinedFilter = [sicknessFilter, damageFilter].filter(Boolean).join(' ') || undefined;
+
   const composedScale = growthScale * mitosisScale * birthingScale * eatWobble * dissolveScale;
   const finalOpacity = Math.min(mitosisOpacity, dissolveOpacity);
   const tx = alien.x - totalSize / 2;
@@ -934,7 +940,7 @@ export const AlienEntity = memo(function AlienEntity({ alien, isBirthing = false
           : 'transform 0.35s linear, opacity 0.4s ease',
         willChange: 'transform',
         contain: 'layout style',
-        filter: sicknessFilter,
+        filter: combinedFilter,
       }}
     >
       <div
@@ -987,6 +993,22 @@ export const AlienEntity = memo(function AlienEntity({ alien, isBirthing = false
         <Legs alien={alien} />
       </div>
       {isDying && <DissolveParticles alien={alien} progress={dissolveProgress} />}
+      {alien.level > 1 && !isDying && (
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+          Lv {alien.level}
+        </div>
+      )}
+      {alien.hp < alien.maxHp && !isDying && (
+        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-black/50 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-green-500 transition-all duration-200"
+            style={{ 
+              width: `${Math.max(0, Math.min(100, (alien.hp / alien.maxHp) * 100))}%`,
+              backgroundColor: alien.hp / alien.maxHp < 0.3 ? '#ef4444' : alien.hp / alien.maxHp < 0.6 ? '#eab308' : '#22c55e'
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 });

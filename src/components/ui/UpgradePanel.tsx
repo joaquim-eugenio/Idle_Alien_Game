@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
 import { COSTS, ALIEN, GALAXY } from '../../lib/constants';
@@ -23,7 +23,7 @@ function UpgradeButton({ label, icon, cost, level, energy, disabled, maxLabel, s
   const canAfford = energy >= cost && !disabled;
 
   return (
-    <motion.button
+    <button
       className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 min-w-[68px] active:scale-95 transition-transform"
       style={{
         background: canAfford ? 'var(--color-ui-surface)' : 'rgba(30,30,63,0.5)',
@@ -31,30 +31,31 @@ function UpgradeButton({ label, icon, cost, level, energy, disabled, maxLabel, s
         opacity: canAfford ? 1 : 0.5,
         flexShrink: 0,
         scrollSnapAlign: 'center',
+        touchAction: 'pan-x',
+        userSelect: 'none',
       }}
-      whileTap={{ scale: 0.92 }}
       onClick={onClick}
       disabled={!canAfford}
     >
-      <span className="text-lg">{icon}</span>
-      <span className="text-[10px] font-medium" style={{ color: 'var(--color-ui-text)' }}>
+      <span className="text-lg pointer-events-none">{icon}</span>
+      <span className="text-[10px] font-medium pointer-events-none" style={{ color: 'var(--color-ui-text)' }}>
         {label}
       </span>
       {subtitle && (
-        <span className="text-[8px] max-w-[64px] truncate" style={{ color: 'var(--color-ui-muted)' }}>
+        <span className="text-[8px] max-w-[64px] truncate pointer-events-none" style={{ color: 'var(--color-ui-muted)' }}>
           {subtitle}
         </span>
       )}
-      <span className="text-[10px]" style={{ color: 'var(--color-ui-muted)' }}>
+      <span className="text-[10px] pointer-events-none" style={{ color: 'var(--color-ui-muted)' }}>
         Lv.{level}
       </span>
       <span
-        className="text-[10px] font-bold"
+        className="text-[10px] font-bold pointer-events-none"
         style={{ color: disabled ? 'var(--color-ui-muted)' : 'var(--color-energy-green)' }}
       >
         {disabled ? maxLabel ?? 'MAX' : formatEnergy(cost)}
       </span>
-    </motion.button>
+    </button>
   );
 }
 
@@ -71,6 +72,34 @@ export function UpgradePanel() {
   const travelToNextGalaxy = useGameStore((s) => s.travelToNextGalaxy);
   const [expanded, setExpanded] = useState(false);
   const [showShop, setShowShop] = useState(false);
+  
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return;
+    isDragging.current = true;
+    startX.current = e.pageX - scrollRef.current.offsetLeft;
+    scrollLeft.current = scrollRef.current.scrollLeft;
+  };
+
+  const handleMouseLeave = () => {
+    isDragging.current = false;
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX.current) * 2; // Scroll-fast
+    scrollRef.current.scrollLeft = scrollLeft.current - walk;
+  };
 
   const nextGalaxy = useMemo(() => getNextGalaxy(currentGalaxyId), [currentGalaxyId]);
   const atMaxGalaxy = currentGalaxyId >= GALAXY.TOTAL_GALAXIES - 1;
@@ -100,7 +129,7 @@ export function UpgradePanel() {
       {/* Toggle bar */}
       <div
         className="absolute bottom-0 left-0 right-0 z-30"
-        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <motion.button
           className="mx-auto flex items-center gap-2 px-4 py-2 rounded-t-xl"
@@ -138,7 +167,12 @@ export function UpgradePanel() {
               <div className="p-3 flex flex-col gap-3">
                 {/* Main upgrades row - horizontally scrollable on mobile */}
                 <div
-                  className="flex gap-2 overflow-x-auto pb-1"
+                  ref={scrollRef}
+                  onMouseDown={handleMouseDown}
+                  onMouseLeave={handleMouseLeave}
+                  onMouseUp={handleMouseUp}
+                  onMouseMove={handleMouseMove}
+                  className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1"
                   style={{
                     WebkitOverflowScrolling: 'touch',
                     touchAction: 'pan-x',
@@ -147,6 +181,7 @@ export function UpgradePanel() {
                     scrollSnapType: 'x proximity',
                     paddingLeft: 4,
                     paddingRight: 4,
+                    cursor: 'grab',
                   }}
                 >
                   <UpgradeButton

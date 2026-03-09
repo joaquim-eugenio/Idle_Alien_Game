@@ -2,6 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { PERSISTENCE } from '../lib/constants';
 
+let _saveDisabled = false;
+
+export function disableSaving() {
+  _saveDisabled = true;
+}
+
 export function useAutoSave() {
   const getSerializableState = useGameStore((s) => s.getSerializableState);
   const loadState = useGameStore((s) => s.loadState);
@@ -24,6 +30,7 @@ export function useAutoSave() {
 
   useEffect(() => {
     const save = () => {
+      if (_saveDisabled) return;
       try {
         const state = getSerializableState();
         localStorage.setItem(PERSISTENCE.SAVE_KEY, JSON.stringify(state));
