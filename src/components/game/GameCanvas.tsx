@@ -10,9 +10,11 @@ import { CollisionEffect } from './CollisionEffect';
 import { FartEffect } from './FartEffect';
 import { PooCanvas } from './PooCanvas';
 import { PredatorCanvas } from './PredatorCanvas';
+import { CombatEffect } from './CombatEffect';
 import { PooCleanEffect } from './PooCleanEffect';
 import { BackgroundPlanets } from './BackgroundPlanets';
 import { StarTravelEffect } from './StarTravelEffect';
+import { BlackHoleEffect } from './BlackHoleEffect';
 import { getGalaxyVisuals } from '../../lib/galaxyData';
 
 function StarField({ nebulaGradients }: { nebulaGradients: string }) {
@@ -97,13 +99,18 @@ export function GameCanvas() {
   const plants = useGameStore((s) => s.plants);
   const worldSize = useGameStore((s) => s.worldSize);
   const collisionEvents = useGameStore((s) => s.collisionEvents);
+  const combatEvents = useGameStore((s) => s.combatEvents);
   const removePoo = useGameStore((s) => s.removePoo);
+  const sicAlienOnPredator = useGameStore((s) => s.sicAlienOnPredator);
   const initializeWorldSize = useGameStore((s) => s.initializeWorldSize);
   const currentGalaxyId = useGameStore((s) => s.currentGalaxyId);
   const isTraveling = useGameStore((s) => s.isTraveling);
   const setTraveling = useGameStore((s) => s.setTraveling);
+  const isBlackHoleActive = useGameStore((s) => s.isBlackHoleActive);
 
   const galaxyVisuals = useMemo(() => getGalaxyVisuals(currentGalaxyId), [currentGalaxyId]);
+
+  const isCombatActive = combatEvents.some(e => Date.now() - e.time < 450);
 
   const handleTravelComplete = useCallback(() => {
     setTraveling(false);
@@ -148,31 +155,66 @@ export function GameCanvas() {
   const draggingRef = useRef(false);
   const CLEAN_RADIUS = 30;
 
-  const tryCleanPoos = useCallback((screenX: number, screenY: number) => {
+  const toWorldCoords = useCallback((screenX: number, screenY: number) => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) return null;
     const rect = container.getBoundingClientRect();
     const cam = cameraRef.current;
-    const worldX = (screenX - rect.left - cam.offsetX) / cam.scale;
-    const worldY = (screenY - rect.top - cam.offsetY) / cam.scale;
-    const scaledRadius = CLEAN_RADIUS / cam.scale;
+    return {
+      x: (screenX - rect.left - cam.offsetX) / cam.scale,
+      y: (screenY - rect.top - cam.offsetY) / cam.scale,
+      scale: cam.scale,
+    };
+  }, []);
+
+  const tryCleanPoos = useCallback((screenX: number, screenY: number) => {
+    const w = toWorldCoords(screenX, screenY);
+    if (!w) return;
+    const scaledRadius = CLEAN_RADIUS / w.scale;
 
     const currentPoos = useGameStore.getState().poos;
     for (const p of currentPoos) {
-      const dx = p.x - worldX;
-      const dy = p.y - worldY;
+      const dx = p.x - w.x;
+      const dy = p.y - w.y;
       if (dx * dx + dy * dy <= scaledRadius * scaledRadius) {
         removePoo(p.id);
         setCleanEffects((prev) => [...prev, { id: p.id, x: p.x, y: p.y, time: Date.now() }]);
       }
     }
-  }, [removePoo]);
+  }, [removePoo, toWorldCoords]);
+
+  const TAP_PREDATOR_RADIUS = 25;
+
+  const tryTapPredator = useCallback((screenX: number, screenY: number) => {
+    const w = toWorldCoords(screenX, screenY);
+    if (!w) return;
+
+    const predators = useGameStore.getState().predatorBugs;
+    let closestId: string | null = null;
+    let closestDist = TAP_PREDATOR_RADIUS;
+
+    for (const p of predators) {
+      if (p.hp <= 0) continue;
+      const dx = p.x - w.x;
+      const dy = p.y - w.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < closestDist) {
+        closestDist = d;
+        closestId = p.id;
+      }
+    }
+
+    if (closestId) {
+      sicAlienOnPredator(closestId);
+    }
+  }, [toWorldCoords, sicAlienOnPredator]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     draggingRef.current = true;
     containerRef.current?.setPointerCapture(e.pointerId);
     tryCleanPoos(e.clientX, e.clientY);
-  }, [tryCleanPoos]);
+    tryTapPredator(e.clientX, e.clientY);
+  }, [tryCleanPoos, tryTapPredator]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingRef.current) return;
@@ -231,13 +273,21 @@ export function GameCanvas() {
 
       <StarTravelEffect active={isTraveling} onComplete={handleTravelComplete} />
 
-      {/* Shake wrapper during travel */}
+      <BlackHoleEffect cameraTransform={camera} />
+
+      {/* Shake wrapper during travel / combat / black hole */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           zIndex: 10,
-          animation: isTraveling ? 'travel-shake 0.15s linear infinite' : undefined,
+          animation: isTraveling
+            ? 'travel-shake 0.15s linear infinite'
+            : isBlackHoleActive
+              ? 'blackhole-shake 0.12s linear infinite'
+              : isCombatActive
+                ? 'combat-shake 0.08s linear infinite'
+                : undefined,
         }}
       >
         {/* Camera-transformed game world */}
@@ -311,9 +361,9 @@ export function GameCanvas() {
             />
           ))}
 
-        {/* Eating effects (viewport-culled via visibleAliens) */}
+        {/* Eating effects (viewport-culled, exclude predator combat) */}
         {visibleAliens
-          .filter((a) => a.eatingProgress > 0 && a.eatingProgress < 0.3)
+          .filter((a) => a.eatingProgress > 0 && a.eatingProgress < 0.3 && !a.isAttackingPredator)
           .map((alien) => (
             <EatingEffect
               key={`eat-${alien.id}`}
@@ -321,6 +371,18 @@ export function GameCanvas() {
               y={alien.y}
               active={true}
               color={alien.traits.bodyColor}
+            />
+          ))}
+
+        {/* Combat effects (viewport-culled) */}
+        {combatEvents
+          .filter(e => e.x >= visBounds.left && e.x <= visBounds.right && e.y >= visBounds.top && e.y <= visBounds.bottom)
+          .map((evt) => (
+            <CombatEffect
+              key={evt.id}
+              x={evt.x}
+              y={evt.y}
+              color={evt.color}
             />
           ))}
 

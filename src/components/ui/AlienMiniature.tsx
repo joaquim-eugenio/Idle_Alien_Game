@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import type { Alien, SicknessLevel } from '../../lib/types';
+import type { Alien, SicknessIntensity } from '../../lib/types';
 import { ALIEN } from '../../lib/constants';
 import { getAlienVisuals } from '../../lib/alienVisualCache';
 
@@ -295,7 +295,14 @@ function MiniMouth({ alien, growthProgress }: { alien: Alien; growthProgress: nu
   );
 }
 
-function MiniSicknessOverlay({ level }: { level: SicknessLevel }) {
+function getPooIntensity(nearbyPooCount: number): SicknessIntensity {
+  if (nearbyPooCount >= 6) return 'heavy';
+  if (nearbyPooCount >= 3) return 'mid';
+  if (nearbyPooCount >= 1) return 'light';
+  return 'none';
+}
+
+function MiniSicknessOverlay({ level }: { level: SicknessIntensity }) {
   if (level === 'none') return null;
   const overlayOpacity = level === 'light' ? 0.08 : level === 'mid' ? 0.15 : 0.25;
 
@@ -323,11 +330,12 @@ export const AlienMiniature = memo(function AlienMiniature({ alien, size = 48 }:
   const growthScale = 0.5 + growthProgress * 0.5;
   const totalSize = SIZE * 1.15 * growthScale;
 
-  const sicknessFilter = alien.sicknessLevel === 'none'
+  const pooIntensity = getPooIntensity(alien.nearbyPooCount);
+  const sicknessFilter = pooIntensity === 'none'
     ? undefined
-    : alien.sicknessLevel === 'light'
+    : pooIntensity === 'light'
       ? 'saturate(0.85) hue-rotate(8deg)'
-      : alien.sicknessLevel === 'mid'
+      : pooIntensity === 'mid'
         ? 'saturate(0.7) hue-rotate(18deg)'
         : 'saturate(0.5) hue-rotate(30deg) brightness(0.9)';
 
@@ -357,7 +365,7 @@ export const AlienMiniature = memo(function AlienMiniature({ alien, size = 48 }:
       >
         <MiniHorns alien={alien} />
         <MiniBody alien={alien} />
-        <MiniSicknessOverlay level={alien.sicknessLevel} />
+        <MiniSicknessOverlay level={pooIntensity} />
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <MiniEyes alien={alien} growthProgress={growthProgress} />
           <MiniMouth alien={alien} growthProgress={growthProgress} />

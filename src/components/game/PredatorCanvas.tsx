@@ -298,6 +298,12 @@ function renderPredator(ctx: CanvasRenderingContext2D, pred: PredatorBug, now: n
 
   const timeSinceDamage = now - pred.lastDamageTime;
   if (timeSinceDamage < PREDATOR.DAMAGE_FLASH_MS && pred.hp > 0) {
+    const shakeDecay = 1 - timeSinceDamage / PREDATOR.DAMAGE_FLASH_MS;
+    const shakeAmp = 3 * shakeDecay;
+    ctx.translate(
+      (Math.random() - 0.5) * shakeAmp * 2,
+      (Math.random() - 0.5) * shakeAmp * 2,
+    );
     ctx.shadowColor = 'rgba(255,0,0,0.8)';
     ctx.shadowBlur = 8;
   } else {

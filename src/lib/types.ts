@@ -7,7 +7,7 @@ export type HornType = 'none' | 'single' | 'double' | 'antlers' | 'spikes';
 export type EyePlacement = 'face' | 'stalks' | 'top';
 export type MouthStyle = 'dot' | 'smile' | 'open' | 'teeth' | 'fangs';
 export type BugSpecies = 'ant' | 'beetle' | 'cricket' | 'centipede' | 'ladybug';
-export type SicknessLevel = 'none' | 'light' | 'mid' | 'heavy';
+export type SicknessIntensity = 'none' | 'light' | 'mid' | 'heavy';
 
 export type PlanetMaterial = 'rock' | 'ice' | 'fire';
 export type TerrainType = 'smooth' | 'banded' | 'swirled' | 'crystalline' | 'volcanic';
@@ -92,13 +92,15 @@ export interface Alien {
   angryUntil: number;
   lastFartTime: number;
   uncleanedPooCount: number;
-  sicknessLevel: SicknessLevel;
+  nearbyPooCount: number;
+  pooExposureTime: number;
   isDying: boolean;
   deathTime?: number;
   level: number;
   hp: number;
   maxHp: number;
   lastDamageTime?: number;
+  isAttackingPredator: boolean;
 }
 
 export interface Bug {
@@ -131,6 +133,7 @@ export interface PredatorBug {
   targetBugId: string | null;
   eatingProgress: number;
   lastDamageTime: number;
+  level: number;
 }
 
 export interface Plant {
@@ -170,6 +173,14 @@ export interface CollisionEvent {
   time: number;
 }
 
+export interface CombatEvent {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  time: number;
+}
+
 export interface GameState {
   energy: number;
   totalEnergyEarned: number;
@@ -186,9 +197,12 @@ export interface GameState {
   totalBugsEaten: number;
   totalReproductions: number;
   collisionEvents: CollisionEvent[];
+  combatEvents: CombatEvent[];
   poos: Poo[];
   currentGalaxyId: number;
   isTraveling: boolean;
+  isBlackHoleActive: boolean;
+  blackHoleTargets: { x: number; y: number; color: string; size: number }[];
   defeatedAlien: Alien | null;
 }
 
@@ -202,7 +216,7 @@ export interface GameActions {
   clearAllPoos: () => void;
   clearDefeatedAlien: () => void;
   removeAlien: (id: string) => void;
-  healAlien: (id: string) => void;
+  healAlien: (id: string, source: 'energy' | 'ad') => void;
   upgradeAlienLevel: (id: string) => boolean;
   addEnergy: (amount: number) => void;
   reset: () => void;
@@ -211,9 +225,12 @@ export interface GameActions {
   initializeWorldSize: (viewportWidth: number, viewportHeight: number) => void;
   travelToNextGalaxy: () => boolean;
   setTraveling: (v: boolean) => void;
+  sicAlienOnPredator: (predatorId: string) => void;
+  activateBlackHole: () => void;
+  completeBlackHole: () => void;
 }
 
-export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'predatorSpawnTimer' | 'collisionEvents' | 'defeatedAlien'> & { collisionEvents: CollisionEvent[]; poos: Poo[]; lastSaveTime?: number };
+export type SerializableGameState = Omit<GameState, 'bugSpawnTimer' | 'plantSpawnTimer' | 'predatorSpawnTimer' | 'collisionEvents' | 'combatEvents' | 'defeatedAlien'> & { collisionEvents: CollisionEvent[]; poos: Poo[]; lastSaveTime?: number };
 
 export interface ShopProduct {
   id: string;

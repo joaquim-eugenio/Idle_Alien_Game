@@ -5,21 +5,22 @@ import { formatEnergy } from '../../lib/utils';
 import { SettingsModal } from './SettingsModal';
 import { AlienStatusPanel } from './AlienStatusPanel';
 import { DefeatedPopup } from './DefeatedPopup';
+import { BlackHoleButton } from './BlackHoleButton';
 import { useAdManager } from '../../hooks/useAdManager';
 
 export function HUD() {
   const energy = useGameStore((s) => s.energy);
   const alienCount = useGameStore((s) => s.aliens.length);
   const totalBugsEaten = useGameStore((s) => s.totalBugsEaten);
-  const sickCount = useGameStore((s) => s.aliens.filter((a) => a.sicknessLevel !== 'none' && !a.isDying).length);
+  const sickCount = useGameStore((s) => s.aliens.filter((a) => a.hp < a.maxHp && !a.isDying).length);
   const pooCount = useGameStore((s) => s.poos.length);
   const clearAllPoos = useGameStore((s) => s.clearAllPoos);
-  const { watchRewardedAd } = useAdManager();
+  const { watchAdForAction } = useAdManager();
   const [showSettings, setShowSettings] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
 
   const handleCleanAll = () => {
-    const adWatched = watchRewardedAd();
+    const adWatched = watchAdForAction();
     if (adWatched) {
       clearAllPoos();
     }
@@ -114,6 +115,18 @@ export function HUD() {
             ⚙
           </button>
         </div>
+      </div>
+
+      {/* Black Hole button - right side */}
+      <div
+        className="absolute z-30 flex flex-col items-center"
+        style={{
+          right: 10,
+          top: '50%',
+          transform: 'translateY(-50%)',
+        }}
+      >
+        <BlackHoleButton />
       </div>
 
       <DefeatedPopup />

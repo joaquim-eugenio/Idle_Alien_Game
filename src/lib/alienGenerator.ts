@@ -96,10 +96,12 @@ export function createAlien(
     angryUntil: 0,
     lastFartTime: 0,
     uncleanedPooCount: 0,
-    sicknessLevel: 'none',
+    nearbyPooCount: 0,
+    pooExposureTime: 0,
     isDying: false,
     level: 1,
     hp: 100,
     maxHp: 100,
+    isAttackingPredator: false,
   };
 }

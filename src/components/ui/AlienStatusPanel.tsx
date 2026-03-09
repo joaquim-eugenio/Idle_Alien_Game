@@ -3,16 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../store/gameStore';
 import { useAdManager } from '../../hooks/useAdManager';
 import { AlienMiniature } from './AlienMiniature';
-import type { Alien, SicknessLevel } from '../../lib/types';
-import { ALIEN, SICKNESS, PREDATOR } from '../../lib/constants';
+import type { Alien } from '../../lib/types';
+import { ALIEN, HEALTH, PREDATOR } from '../../lib/constants';
 import { formatEnergy } from '../../lib/utils';
 
-const SICKNESS_LABELS: Record<SicknessLevel, { label: string; color: string }> = {
-  none: { label: 'Healthy', color: '#39ff14' },
-  light: { label: 'Mild', color: '#c8e636' },
-  mid: { label: 'Moderate', color: '#f5a623' },
-  heavy: { label: 'Critical', color: '#ef4444' },
-};
+function getHpColor(ratio: number): string {
+  if (ratio < 0.3) return '#ef4444';
+  if (ratio < 0.6) return '#eab308';
+  return '#22c55e';
+}
 
 function getLifeStage(alien: Alien): string {
   if (alien.isDying) return 'Dying';
@@ -21,12 +20,21 @@ function getLifeStage(alien: Alien): string {
   return 'Grown';
 }
 
-function AlienStatusRow({ alien, onHeal, onUpgrade, energy }: { alien: Alien; onHeal: (id: string) => void; onUpgrade: (id: string) => void; energy: number }) {
-  const sickness = SICKNESS_LABELS[alien.sicknessLevel];
+function AlienStatusRow({ alien, onHealEnergy, onHealAd, onUpgrade, energy }: {
+  alien: Alien;
+  onHealEnergy: (id: string) => void;
+  onHealAd: (id: string) => void;
+  onUpgrade: (id: string) => void;
+  energy: number;
+}) {
   const stage = getLifeStage(alien);
-  const isSick = alien.sicknessLevel !== 'none';
+  const hpRatio = alien.maxHp > 0 ? alien.hp / alien.maxHp : 1;
+  const hpColor = getHpColor(hpRatio);
+  const isInjured = alien.hp < alien.maxHp;
   const upgradeCost = Math.floor(100 * Math.pow(1.5, alien.level - 1));
   const canUpgrade = energy >= upgradeCost && !alien.isDying;
+  const healCost = HEALTH.HEAL_ENERGY_COST_BASE * alien.level;
+  const canHealEnergy = isInjured && energy >= healCost && !alien.isDying;
   const combatPower = PREDATOR.DAMAGE_PER_HIT + ((alien.level - 1) * PREDATOR.POWER_PER_LEVEL);
 
   return (
@@ -38,14 +46,14 @@ function AlienStatusRow({ alien, onHeal, onUpgrade, energy }: { alien: Alien; on
       className="flex items-center gap-3 p-3 rounded-xl"
       style={{
         background: 'rgba(255,255,255,0.04)',
-        border: `1px solid ${isSick ? `${sickness.color}33` : 'rgba(58,58,110,0.3)'}`,
+        border: `1px solid ${isInjured ? `${hpColor}33` : 'rgba(58,58,110,0.3)'}`,
       }}
     >
       <div
         className="rounded-lg overflow-hidden flex items-center justify-center relative"
         style={{
           background: 'rgba(0,0,0,0.3)',
-          border: `1px solid ${isSick ? `${sickness.color}44` : 'rgba(58,58,110,0.4)'}`,
+          border: `1px solid ${isInjured ? `${hpColor}44` : 'rgba(58,58,110,0.4)'}`,
           width: 52,
           height: 52,
           flexShrink: 0,
@@ -62,9 +70,9 @@ function AlienStatusRow({ alien, onHeal, onUpgrade, energy }: { alien: Alien; on
           <span
             className="text-xs font-semibold px-1.5 py-0.5 rounded"
             style={{
-              background: `${sickness.color}22`,
-              color: sickness.color,
-              border: `1px solid ${sickness.color}33`,
+              background: `${hpColor}22`,
+              color: hpColor,
+              border: `1px solid ${hpColor}33`,
             }}
           >
             {stage}
@@ -96,12 +104,12 @@ function AlienStatusRow({ alien, onHeal, onUpgrade, energy }: { alien: Alien; on
           </div>
 
           <div className="flex items-center gap-1">
-            <span className="text-xs">🤢</span>
+            <span className="text-xs">❤️</span>
             <span
-              className="text-xs font-medium"
-              style={{ color: sickness.color }}
+              className="text-xs font-medium tabular-nums"
+              style={{ color: hpColor }}
             >
-              {sickness.label}
+              {Math.ceil(alien.hp)}/{alien.maxHp}
             </span>
           </div>
         </div>
@@ -114,8 +122,8 @@ function AlienStatusRow({ alien, onHeal, onUpgrade, energy }: { alien: Alien; on
             <div
               className="h-full rounded-full"
               style={{
-                width: `${Math.min(100, (alien.uncleanedPooCount / SICKNESS.DEATH_THRESHOLD) * 100)}%`,
-                background: `linear-gradient(90deg, ${sickness.color}88, ${sickness.color})`,
+                width: `${Math.max(0, Math.min(100, hpRatio * 100))}%`,
+                background: `linear-gradient(90deg, ${hpColor}88, ${hpColor})`,
                 transition: 'width 0.3s ease',
               }}
             />
@@ -124,22 +132,39 @@ function AlienStatusRow({ alien, onHeal, onUpgrade, energy }: { alien: Alien; on
       </div>
 
       <div className="flex flex-col gap-1 items-end">
-        {isSick && (
-          <motion.button
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
-              color: 'white',
-              flexShrink: 0,
-            }}
-            whileTap={{ scale: 0.92 }}
-            onClick={() => onHeal(alien.id)}
-          >
-            <span>🎬</span>
-            <span>Heal</span>
-          </motion.button>
+        {isInjured && !alien.isDying && (
+          <>
+            <motion.button
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium active:scale-95"
+              style={{
+                background: canHealEnergy ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'rgba(30,30,63,0.5)',
+                color: 'white',
+                flexShrink: 0,
+                opacity: canHealEnergy ? 1 : 0.5,
+              }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => onHealEnergy(alien.id)}
+              disabled={!canHealEnergy}
+            >
+              <span>⚡</span>
+              <span>{formatEnergy(healCost)}</span>
+            </motion.button>
+            <motion.button
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                color: 'white',
+                flexShrink: 0,
+              }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => onHealAd(alien.id)}
+            >
+              <span>🎬</span>
+              <span>Heal</span>
+            </motion.button>
+          </>
         )}
-        {!isSick && (
+        {!isInjured && !alien.isDying && (
           <motion.button
             className="flex flex-col items-center justify-center px-2 py-1 rounded-lg active:scale-95"
             style={{
@@ -171,25 +196,30 @@ export function AlienStatusPanel({ onClose }: AlienStatusPanelProps) {
   const aliens = useGameStore((s) => s.aliens);
   const healAlien = useGameStore((s) => s.healAlien);
   const upgradeAlienLevel = useGameStore((s) => s.upgradeAlienLevel);
-  const { watchRewardedAd } = useAdManager();
+  const { watchAdForAction } = useAdManager();
 
-  const handleHeal = useCallback((alienId: string) => {
-    const adWatched = watchRewardedAd();
+  const handleHealEnergy = useCallback((alienId: string) => {
+    healAlien(alienId, 'energy');
+  }, [healAlien]);
+
+  const handleHealAd = useCallback((alienId: string) => {
+    const adWatched = watchAdForAction();
     if (adWatched) {
-      healAlien(alienId);
+      healAlien(alienId, 'ad');
     }
-  }, [watchRewardedAd, healAlien]);
+  }, [watchAdForAction, healAlien]);
 
   const handleUpgrade = useCallback((alienId: string) => {
     upgradeAlienLevel(alienId);
   }, [upgradeAlienLevel]);
 
-  const sickCount = aliens.filter((a) => a.sicknessLevel !== 'none').length;
+  const injuredCount = aliens.filter((a) => a.hp < a.maxHp && !a.isDying).length;
   const sortedAliens = [...aliens]
     .filter((a) => !a.isDying)
     .sort((a, b) => {
-      const sicknessOrder: Record<SicknessLevel, number> = { heavy: 0, mid: 1, light: 2, none: 3 };
-      return sicknessOrder[a.sicknessLevel] - sicknessOrder[b.sicknessLevel];
+      const ratioA = a.maxHp > 0 ? a.hp / a.maxHp : 1;
+      const ratioB = b.maxHp > 0 ? b.hp / b.maxHp : 1;
+      return ratioA - ratioB;
     });
 
   return (
@@ -220,7 +250,7 @@ export function AlienStatusPanel({ onClose }: AlienStatusPanelProps) {
               Alien Status
             </h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-ui-muted)' }}>
-              {aliens.length} aliens{sickCount > 0 && ` · ${sickCount} sick`}
+              {aliens.length} aliens{injuredCount > 0 && ` · ${injuredCount} injured`}
             </p>
           </div>
           <button
@@ -250,7 +280,8 @@ export function AlienStatusPanel({ onClose }: AlienStatusPanelProps) {
                 <AlienStatusRow
                   key={alien.id}
                   alien={alien}
-                  onHeal={handleHeal}
+                  onHealEnergy={handleHealEnergy}
+                  onHealAd={handleHealAd}
                   onUpgrade={handleUpgrade}
                   energy={energy}
                 />

@@ -16,10 +16,11 @@ interface UpgradeButtonProps {
   disabled?: boolean;
   maxLabel?: string;
   subtitle?: string;
+  bonusInfo?: string;
   onClick: () => void;
 }
 
-function UpgradeButton({ label, icon, cost, level, energy, disabled, maxLabel, subtitle, onClick }: UpgradeButtonProps) {
+function UpgradeButton({ label, icon, cost, level, energy, disabled, maxLabel, subtitle, bonusInfo, onClick }: UpgradeButtonProps) {
   const canAfford = energy >= cost && !disabled;
 
   return (
@@ -44,6 +45,11 @@ function UpgradeButton({ label, icon, cost, level, energy, disabled, maxLabel, s
       {subtitle && (
         <span className="text-[8px] max-w-[64px] truncate pointer-events-none" style={{ color: 'var(--color-ui-muted)' }}>
           {subtitle}
+        </span>
+      )}
+      {bonusInfo && (
+        <span className="text-[9px] font-semibold pointer-events-none" style={{ color: '#fbbf24' }}>
+          {bonusInfo}
         </span>
       )}
       <span className="text-[10px] pointer-events-none" style={{ color: 'var(--color-ui-muted)' }}>
@@ -103,6 +109,12 @@ export function UpgradePanel() {
 
   const nextGalaxy = useMemo(() => getNextGalaxy(currentGalaxyId), [currentGalaxyId]);
   const atMaxGalaxy = currentGalaxyId >= GALAXY.TOTAL_GALAXIES - 1;
+
+  const travelEnergyBonus = useMemo(() => {
+    if (atMaxGalaxy) return '';
+    const nextMultiplier = Math.pow(GALAXY.ENERGY_MULTIPLIER_PER_GALAXY, currentGalaxyId + 1);
+    return `⚡ ${nextMultiplier.toFixed(nextMultiplier >= 10 ? 0 : 1)}x`;
+  }, [currentGalaxyId, atMaxGalaxy]);
 
   const costs = useMemo(
     () => ({
@@ -227,6 +239,7 @@ export function UpgradePanel() {
                     disabled={atMaxGalaxy}
                     maxLabel="Final"
                     subtitle={nextGalaxy?.name}
+                    bonusInfo={travelEnergyBonus}
                     onClick={travelToNextGalaxy}
                   />
                 </div>

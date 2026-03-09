@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import type { Alien, SicknessLevel } from '../../lib/types';
-import { ALIEN, SICKNESS } from '../../lib/constants';
+import type { Alien, SicknessIntensity } from '../../lib/types';
+import { ALIEN, HEALTH } from '../../lib/constants';
 import { getAlienVisuals } from '../../lib/alienVisualCache';
 
 interface AlienEntityProps {
@@ -732,7 +732,14 @@ function hashId(id: string): number {
   return h;
 }
 
-const BUBBLE_CONFIG: Record<SicknessLevel, { count: number; minSize: number; maxSize: number; opacity: number }> = {
+function getPooIntensity(nearbyPooCount: number): SicknessIntensity {
+  if (nearbyPooCount >= 6) return 'heavy';
+  if (nearbyPooCount >= 3) return 'mid';
+  if (nearbyPooCount >= 1) return 'light';
+  return 'none';
+}
+
+const BUBBLE_CONFIG: Record<SicknessIntensity, { count: number; minSize: number; maxSize: number; opacity: number }> = {
   none: { count: 0, minSize: 0, maxSize: 0, opacity: 0 },
   light: { count: 4, minSize: 2, maxSize: 3, opacity: 0.35 },
   mid: { count: 8, minSize: 3, maxSize: 5, opacity: 0.5 },
@@ -740,7 +747,7 @@ const BUBBLE_CONFIG: Record<SicknessLevel, { count: number; minSize: number; max
 };
 
 function SicknessBubbles({ alien }: { alien: Alien }) {
-  const level = alien.sicknessLevel;
+  const level = getPooIntensity(alien.nearbyPooCount);
   const config = BUBBLE_CONFIG[level];
 
   const bubbles = useMemo(() => {
@@ -781,7 +788,7 @@ function SicknessBubbles({ alien }: { alien: Alien }) {
   );
 }
 
-function SicknessOverlay({ level }: { level: SicknessLevel }) {
+function SicknessOverlay({ level }: { level: SicknessIntensity }) {
   if (level === 'none') return null;
 
   const overlayOpacity = level === 'light' ? 0.08 : level === 'mid' ? 0.15 : 0.25;
@@ -902,18 +909,18 @@ export const AlienEntity = memo(function AlienEntity({ alien, isBirthing = false
   // Dissolve effect
   const isDying = alien.isDying && alien.deathTime != null;
   const dissolveProgress = isDying
-    ? Math.min((Date.now() - alien.deathTime!) / SICKNESS.DISSOLVE_DURATION, 1)
+    ? Math.min((Date.now() - alien.deathTime!) / HEALTH.DISSOLVE_DURATION, 1)
     : 0;
   const dissolveEase = 1 - Math.pow(1 - dissolveProgress, 2);
   const dissolveScale = isDying ? 1 - dissolveEase * 0.4 : 1;
   const dissolveOpacity = isDying ? 1 - dissolveEase : 1;
 
-  // Sickness color filter
-  const sicknessFilter = alien.sicknessLevel === 'none'
+  const pooIntensity = getPooIntensity(alien.nearbyPooCount);
+  const sicknessFilter = pooIntensity === 'none'
     ? undefined
-    : alien.sicknessLevel === 'light'
+    : pooIntensity === 'light'
       ? 'saturate(0.85) hue-rotate(8deg)'
-      : alien.sicknessLevel === 'mid'
+      : pooIntensity === 'mid'
         ? 'saturate(0.7) hue-rotate(18deg)'
         : 'saturate(0.5) hue-rotate(30deg) brightness(0.9)';
 
@@ -983,7 +990,7 @@ export const AlienEntity = memo(function AlienEntity({ alien, isBirthing = false
         <Horns alien={alien} />
         <Antennae alien={alien} />
         <Body alien={alien} />
-        <SicknessOverlay level={alien.sicknessLevel} />
+        <SicknessOverlay level={pooIntensity} />
         <SicknessBubbles alien={alien} />
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <Eyes alien={alien} growthProgress={growthProgress} />

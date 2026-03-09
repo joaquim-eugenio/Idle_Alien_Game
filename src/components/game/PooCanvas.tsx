@@ -1,6 +1,7 @@
 import { useRef, useEffect, memo } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { Poo } from '../../lib/types';
+import { HEALTH } from '../../lib/constants';
 
 const { sin, cos, PI, max, min } = Math;
 
@@ -17,6 +18,35 @@ function getPooGradientColors(alienColor: string): { inner: string; outer: strin
   c = { inner: '#8B6914', outer: '#5C3D00' };
   gradientCache.set(quantized, c);
   return c;
+}
+
+function renderDangerZone(ctx: CanvasRenderingContext2D, poo: Poo, now: number) {
+  const r = HEALTH.POO_DAMAGE_RADIUS;
+  const cx = poo.x + POO_SIZE / 2;
+  const cy = poo.y + POO_SIZE / 2;
+
+  const pulseT = (now % 2500) / 2500;
+  const pulse = 0.5 + 0.5 * sin(pulseT * PI * 2);
+  const baseAlpha = 0.05 + pulse * 0.04;
+
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grad.addColorStop(0, `rgba(100, 180, 40, ${baseAlpha * 1.8})`);
+  grad.addColorStop(0.5, `rgba(80, 140, 30, ${baseAlpha})`);
+  grad.addColorStop(1, 'rgba(60, 100, 20, 0)');
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(120, 200, 50, ${baseAlpha * 2.5})`;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.lineDashOffset = -now * 0.015;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 function renderPoo(ctx: CanvasRenderingContext2D, poo: Poo, now: number) {
@@ -115,6 +145,11 @@ export const PooCanvas = memo(function PooCanvas({ width, height, visBounds }: P
       ctx.clearRect(0, 0, width, height);
       const currentPoos = useGameStore.getState().poos;
       const vb = boundsRef.current;
+      for (let i = 0; i < currentPoos.length; i++) {
+        const poo = currentPoos[i];
+        if (vb && (poo.x < vb.left - HEALTH.POO_DAMAGE_RADIUS || poo.x > vb.right + HEALTH.POO_DAMAGE_RADIUS || poo.y < vb.top - HEALTH.POO_DAMAGE_RADIUS || poo.y > vb.bottom + HEALTH.POO_DAMAGE_RADIUS)) continue;
+        renderDangerZone(ctx, poo, now);
+      }
       for (let i = 0; i < currentPoos.length; i++) {
         const poo = currentPoos[i];
         if (vb && (poo.x < vb.left || poo.x > vb.right || poo.y < vb.top || poo.y > vb.bottom)) continue;

@@ -23,6 +23,12 @@ export function useAdManager() {
     return true;
   }, [canWatchRewardedAd, addEnergy]);
 
+  const watchAdForAction = useCallback(() => {
+    // Separate ad path for heal/clean actions: no shared cooldown, no energy reward.
+    // In production, this triggers a real rewarded ad via Capacitor AdMob.
+    return true;
+  }, []);
+
   const shouldShowInterstitial = useCallback(() => {
     if (adsRemoved) return false;
     return interstitialCounter > 0 &&
@@ -43,6 +49,7 @@ export function useAdManager() {
   return {
     canWatchRewardedAd: canWatchRewardedAd(),
     watchRewardedAd,
+    watchAdForAction,
     shouldShowInterstitial: shouldShowInterstitial(),
     showInterstitial,
     adsRemoved,
